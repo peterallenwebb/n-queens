@@ -1,7 +1,7 @@
 //! Counting n-queens solutions by the balanced checkerboard join.
 //!
-//! Call a cell (r, c) even or odd by the parity of r + c (the checkerboard colouring). Every diagonal
-//! has constant parity, so the queens on even cells and the queens on odd cells can only attack each
+//! Call a square (r, c) even or odd by the parity of r + c (the checkerboard colouring). Every diagonal
+//! has constant parity, so the queens on even squares and the queens on odd squares can only attack each
 //! other through rows and columns. A configuration (a solution) therefore splits into an even
 //! configuration and an odd configuration — partial solutions confined to one parity — with
 //! complementary row sets and complementary column sets, and the count factors into a sum of products

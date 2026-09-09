@@ -1,9 +1,9 @@
 //! The balanced checkerboard join: work items, the CPU configuration enumerator, the join, and the CPU count.
 //!
-//! Notation (METHOD.md). Cells are classed by (row parity, column parity); even = (0,0) ∪ (1,1),
+//! Notation (METHOD.md). Squares are classed by (row parity, column parity); even = (0,0) ∪ (1,1),
 //! odd = (0,1) ∪ (1,0). For a row set R and column set C let E[R, C] be the number of ways to place
-//! |R| mutually non-attacking queens on even cells with row set exactly R and column set exactly
-//! C (a "even configuration"); O[R, C] likewise on odd cells. Then
+//! |R| mutually non-attacking queens on even squares with row set exactly R and column set exactly
+//! C (an "even configuration"); O[R, C] likewise on odd squares. Then
 //!
 //!   Q(n) = Σ_R Σ_C E[R, C] · O[R̄, C̄]           (R̄, C̄ = complements)
 //!
@@ -42,7 +42,7 @@ impl PartSpec {
         let rows: Vec<u32> = (0..g.n).filter(|i| rowmask >> i & 1 != 0).collect();
         let ke_rows = (rowmask & g.even_rows()).count_ones();
         let ko_rows = rows.len() as u32 - ke_rows;
-        // on even cells a queen in an even row sits on an even column and in an odd row on an odd column; odd cells are the reverse
+        // on even squares a queen in an even row sits on an even column and in an odd row on an odd column; odd squares are the reverse
         let (ke, ko) = if even { (ke_rows, ko_rows) } else { (ko_rows, ke_rows) };
         PartSpec { rowmask, rows, even, ke, ko, width_even: binom(g.ne, ke), width_odd: binom(g.no, ko) }
     }
