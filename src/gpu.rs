@@ -1,10 +1,10 @@
-//! The CUDA production path (feature `cuda`): the balanced checkerboard join with the piece
+//! The CUDA production path (feature `cuda`): the balanced checkerboard join with the configuration
 //! enumeration and the join on the device. Same work items, tables and join as the CPU path
 //! (`parity`); the kernel is `kernel/parity.cu`, compiled at run time by NVRTC for the device found.
 //!
 //! Work items are processed in batches: a batch takes as many items as fit its table budget, one
-//! dense table per item for the side with the smaller table. Phase 1 enumerates those pieces into
-//! their tables; phase 2 enumerates the partner pieces and, at each leaf, reads the partner's table
+//! dense table per item for the side with the smaller table. Phase 1 enumerates those configurations into
+//! their tables; phase 2 enumerates the partner configurations and, at each leaf, reads the partner's table
 //! entry at the complementary column ranks into a per-pair sum (so the larger side is never stored).
 //! Items whose partner is the same row set (even n, R = ρ(R̄)) are joined by a separate kernel over
 //! the table with itself. Sums are multiplied by the item weights and accumulated in u128 on the host.

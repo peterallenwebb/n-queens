@@ -1,7 +1,7 @@
 /*
- * Balanced checkerboard join on the GPU: piece enumeration into dense tables, and the join.
+ * Balanced checkerboard join on the GPU: configuration enumeration into dense tables, and the join.
  *
- * Every partition (one piece: a row set and a colour) is enumerated by a depth-first search over its
+ * Every partition (one configuration: a row set and a colour) is enumerated by a depth-first search over its
  * rows. The first NQ_PREF rows are decided by a "ticket": a mixed-radix number whose digits choose
  * one column of the right colour in each prefix row (dead prefixes are simply skipped), so the search
  * is split into millions of independent roots that persistent threads pull from a global cursor.
@@ -9,8 +9,8 @@
  * (candidate columns, cols, ld, rd): one pass extracts the lowest candidate of the top frame, writes
  * the shrunken mask back, folds the pop, and pushes the child frame. The frame's row index rides in
  * bits 28-31 of cols (low nibble) and of ld (high nibble); the partition's row mask, colour and last
- * row stay in registers. Leaves are pieces: mode 0 (tabulate) increments the table entry of the
- * piece's (even-column subset rank, odd-column subset rank); mode 1 (read) adds the partner table's
+ * row stay in registers. Leaves are configurations: mode 0 (tabulate) increments the table entry of the
+ * configuration's (even-column subset rank, odd-column subset rank); mode 1 (read) adds the partner table's
  * entry at the complementary ranks to a per-thread accumulator that is flushed into the pair's sum.
  *
  * Baked by the host: NQ_N, NQ_NE, NQ_NO (columns per colour), NQ_PREF, WG_SIZE (block size),
@@ -123,7 +123,7 @@ void parity_dfs(
                     cols |= bit; ld = ((ld | bit) << gp) & FULL; rd = (rd | bit) >> gp;
                 }
                 if (!ok) continue;
-                if (d == L) {   /* the prefix is the whole piece */
+                if (d == L) {   /* the prefix is the whole configuration */
                     u32 re = RK(even_bits(cols)); u32 ro = RK(odd_bits(cols));
                     LEAF_OP(re, ro);
                     continue;

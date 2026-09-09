@@ -1,43 +1,26 @@
 # n-queens: Q(n) by the balanced checkerboard join
 
-This repository holds exactly the program used to count n-queens solutions,
-Q(n), by the balanced checkerboard join — a decomposition of every solution into
-its black-square queens and its white-square queens (METHOD.md) — together with
-the tests that validate it and the records of the computations made with it.
-It was built to compute Q(28) on a fleet of NVIDIA RTX 5090 boxes and is
-published so that the computation can be examined and reproduced.
+This repository contains code for counting n-queens solutions by a "balanced checkerboard join," a decomposition of every solution into its black-square queens and its white-square queens (METHOD.md). The repository also includes tests that validate the counting code and records of the computations made with it. The goal is to compute Q(28) on a fleet of worker nodes equipped with NVIDIA RTX 5090 GPUs, and is published so that the computation can be examined and reproduced.
 
-**Status.** Q(25) and Q(26) reproduced (one RTX 5090, 9,422 s and 22,075 s);
-Q(27) in progress; Q(28) to follow. Every count is checked against the
-published value where one exists, against the mod-8 identity Q ≡ S₂ (mod 8)
-with S₂ counted by an unrelated program, and by recomputing a sample of its
-phases in a different configuration (VALIDATION.md).
+**Current Status:** 
+* The known values of Q(25) and Q(26) have been reproduced (one RTX 5090, 9,422s and 22,075s).
+* A reproduction of Q(27) is in progress
+* Every count is checked against the published value where one exists, against the mod-8 identity Q ≡ S₂ (mod 8) with S₂ counted by an unrelated program, and by recomputing a sample of its phases in a different configuration (VALIDATION.md).
 
 ## The method in one paragraph
 
-Colour the board like a checkerboard. Every diagonal is monochromatic, so the
-queens on black squares and the queens on white squares can attack each other
-only through rows and columns. A solution is therefore exactly a black *piece*
-(a non-attacking placement on black squares) and a white piece on the
-complementary rows and columns, and
+Every diagonal is monochromatic on a chess board, so black square queens and white square queens can attack each other only through rows and columns. A solution is therefore exactly a black-restricted configuration (partial solution) and a white-restricted configuration on the complementary rows and columns, and
 
-    Q(n) = Σ_R Σ_C E[R, C] · W[R̄, C̄],
+    Q(n) = Σ_R Σ_C B[R, C] · W[R̄, C̄],
 
-where E[R, C] (W[R, C]) is the number of black (white) pieces with row set R and
-column set C. Only *balanced* row sets contribute (Lemma 2 of METHOD.md), the
-row reflection turns white pieces into black ones for even n, and the 180°
-rotation halves the work. Each row set is one bounded search whose leaves are
-counted into a dense table indexed by the ranks of the piece's even and odd
-column subsets; pairs are joined by reading the partner's table at the
-complementary ranks. Pieces are far fewer than solutions at n ≥ 20: the
-search costs 0.0665 steps per solution at n = 26.
+where B[R, C] (W[R, C]) is the number of black (white) configurations with row set R and column set C. Only balanced row sets contribute (Lemma 2 of METHOD.md). Row reflection turns white configurations into black ones for even n, and the 180° rotation cuts the work in half. Each row set is one bounded search whose leaves are counted into a dense table indexed by the ranks of the configuration's even and odd column subsets; pairs are joined by reading the partner's table at the complementary ranks. Importantly, configurations are far fewer than solutions at n ≥ 20: the search costs 0.0665 steps per solution at n = 26.
 
 ## Layout
 
 | path | contents |
 |---|---|
 | `src/geometry.rs` | binomials, colex ranks of column subsets, colour bit compressions, the two-level rank table the kernel uses |
-| `src/parity.rs` | work items (row-set pairs with symmetry weights), the CPU piece enumerator, the join, the CPU count, selections (ranges and phases) |
+| `src/parity.rs` | work items (row-set pairs with symmetry weights), the CPU configuration enumerator, the join, the CPU count, selections (ranges and phases) |
 | `src/gpu.rs`, `kernel/parity.cu` | the CUDA production path (feature `cuda`): batches, tickets, the stack-resident enumeration, the read-side join |
 | `src/burnside.rs` | the 180°-symmetric count and the mod-8 check |
 | `src/reference.rs` | an independent brute-force solver (tests only) |
@@ -63,25 +46,15 @@ cargo test --release --features cuda -- --ignored --test-threads 1      # GPU la
 NQ_PAIR_STRIDE=200 NQ_PAIR_PHASE=17 ./target/release/nqueens-parity 27 --cuda    # one phase of a fleet run
 ```
 
-The CPU path is exact and independent of the GPU; it counts n = 22 in about two
-hours on a laptop. The GPU kernel is compiled at run time by NVRTC for the
-device found, so any recent NVIDIA GPU can run the ladder.
+The CPU path is independent of the GPU; it counts n = 22 in about two hours on a MacBook Pro M1. The GPU kernel is compiled at run time by NVRTC for the device found, so any recent NVIDIA GPU can run the ladder.
 
 ## Records
 
-`logs/` keeps, for each computation, the chunk or phase CSV (one row per unit
-of work with its partial count, wall time and provenance), the driver log,
-the merge summary, the mod-8 output and the verification reruns, with a
-README describing the machine, driver and source revision. See `logs/README.md`.
+`logs/` keeps, for each computation, the chunk or phase CSV (one row per unit of work with its partial count, wall time and provenance), the driver log, the merge summary, the mod-8 output and the verification reruns, with a README describing the machine, driver and source revision. See `logs/README.md`.
 
 ## Provenance
 
-The decomposition, kernel and tools were developed in a larger research
-repository; this repository contains the production subset, re-validated from
-scratch (the tests above and the GPU ladder in `logs/ladders/`). The Q(25) and
-Q(26) records in `logs/` were produced by that development repository's build
-of the same kernel, as noted in `logs/README.md`; every later computation is
-run from this repository at a recorded commit.
+The decomposition, kernel and tools were developed in a larger research repository; this repository contains the production subset, re-validated from scratch (the tests above and the GPU ladder in `logs/ladders/`). The Q(25) and Q(26) records in `logs/` were produced by that development repository's build of the same kernel, as noted in `logs/README.md`; every later computation is run from this repository at a recorded commit.
 
 ## License
 

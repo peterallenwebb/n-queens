@@ -72,7 +72,7 @@ is printed (Q(28) ≈ 2.5 × 10¹⁸ < 1.8 × 10¹⁹). Table entries are u32; t
 entries observed with `NQ_TABMAX=1` are 98 (n = 20), 230 (n = 22), 818 (n = 24,
 a 1 % sample), 967 (n = 26, 101 items), 3,662 (n = 28, the 101 heaviest-sampled
 items) — growing ×3–4 per two steps of n, five orders of magnitude below 2³².
-The per-lane stack must hold L − min(prefix, L) frames for a piece with L rows;
+The per-lane stack must hold L − min(prefix, L) frames for a configuration with L rows;
 L varies per work item (it is any even number for even n), the default of
 n − prefix + 1 frames covers the worst case, and the host refuses a smaller
 `NQ_MAXSTACK` after checking every item of the run.

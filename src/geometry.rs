@@ -3,9 +3,9 @@
 //!
 //! Columns of one colour are numbered by their position among the columns of that colour: the even
 //! columns 0, 2, 4, … become bits 0, 1, 2, … of the "even mask" (`even_bits`), and likewise for the
-//! odd columns. A piece with `k` queens on even columns has its even-column subset ranked in
+//! odd columns. A configuration with `k` queens on even columns has its even-column subset ranked in
 //! colex order among all `k`-subsets, so a dense table of size C(ne, ke) × C(no, ko) indexes every
-//! (even subset, odd subset) pair a piece can occupy.
+//! (even subset, odd subset) pair a configuration can occupy.
 
 /// Binomial coefficient C(a, b) (0 when b > a); exact in u64 for the sizes used here (a ≤ 32).
 pub fn binom(a: u32, b: u32) -> u64 {
@@ -83,7 +83,7 @@ impl Geometry {
     pub fn even_rows(&self) -> u32 { self.full & 0x5555_5555 }
 
     /// For the k-subsets of the `which` columns (0 even, 1 odd): rank → rank of the complementary
-    /// (cnt − k)-subset. This is how a black piece's column subset finds the white piece's.
+    /// (cnt − k)-subset. This is how a black configuration's column subset finds the white configuration's.
     pub fn complement_ranks(&self, which: usize, k: u32) -> Vec<u32> {
         let cnt = if which == 0 { self.ne } else { self.no };
         let fullw = (1u32 << cnt) - 1;

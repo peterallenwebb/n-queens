@@ -106,11 +106,11 @@ fn checkerboard_join_matches_reference_and_published_values() {
     }
 }
 
-/// A single piece enumeration and join, checked against a direct count: for n = 8 (even: the partner
-/// is the black piece on the reflected complementary rows) and n = 9 (odd: the partner is the white
-/// piece on the complementary rows), enumerate both pieces of every pair and compare the joined sum
+/// A single configuration enumeration and join, checked against a direct count: for n = 8 (even: the partner
+/// is the black configuration on the reflected complementary rows) and n = 9 (odd: the partner is the white
+/// configuration on the complementary rows), enumerate both configurations of every pair and compare the joined sum
 /// with the brute-force number of solutions whose black queens occupy exactly the rows of the pair's
-/// black piece.
+/// black configuration.
 #[test]
 fn one_pair_matches_a_direct_count() {
     for n in [8u32, 9] {
