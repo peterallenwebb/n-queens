@@ -36,6 +36,7 @@ ap.add_argument("--timeout-min", type=float, default=0.0, help="kill a phase aft
 ap.add_argument("--target-min", type=float, default=30.0, help="phase length to aim for (used for the stride hint)")
 ap.add_argument("--redo", action="store_true", help="run the phases even if already recorded (verification reruns)")
 ap.add_argument("--dry", action="store_true", help="print the plan and exit")
+ap.add_argument("--push-env", default=None, help="file with PUSH_CSV_URL / PUSH_LOG_URL / PUSH_MANIFEST_URL (signed upload URLs, tools/presign.py); default DIR/push_urls.env when present")
 a = ap.parse_args()
 if a.stride < 1 or a.workers < 1 or not (0 <= a.worker < a.workers): sys.exit("bad --stride/--worker/--workers")
 
@@ -84,6 +85,30 @@ else:
     manifest = {"n": a.n, "stride": a.stride, "workmap": workmap, "items_total": items_total, "created": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "host": host, "gpu": gpu_name, "binary_sha": binary_sha, "commit": commit, "tool": "tools/worker.py"}
     with open(manifest_path, "w") as f: json.dump(manifest, f, indent=1); f.flush(); os.fsync(f.fileno())
+
+# ---- records push: signed PUT URLs (tools/presign.py) uploaded with curl after every phase; failures are
+# logged and retried at the next phase, never fatal — the box's own CSV remains the primary record
+push_urls = {}
+push_env_path = a.push_env or os.path.join(a.out, "push_urls.env")
+if os.path.exists(push_env_path):
+    with open(push_env_path) as f:
+        for line in f:
+            if "=" in line and not line.startswith("#"):
+                k, v = line.strip().split("=", 1); push_urls[k] = v
+push_failures = 0
+def push(key, path):
+    """PUT `path` to the signed URL named `key`; returns True on success."""
+    global push_failures
+    url = push_urls.get(key)
+    if not url or not os.path.exists(path): return False
+    r = subprocess.run(["curl", "-sS", "-f", "--max-time", "120", "-o", "/dev/null", "-X", "PUT", "-T", path, url], capture_output=True, text=True)
+    if r.returncode != 0:
+        push_failures += 1
+        print(f"push of {os.path.basename(path)} failed ({r.stderr.strip()[:120]}); will retry after the next phase", flush=True)
+    return r.returncode == 0
+if push_urls:
+    print(f"records push: {len(push_urls)} signed URLs from {push_env_path}", flush=True)
+    push("PUSH_MANIFEST_URL", manifest_path)
 
 tag = f"_{a.tag}" if a.tag else ""
 base = os.path.join(a.out, f"parity_{a.n}_s{a.stride}_w{a.worker}of{a.workers}_{host}{tag}")
@@ -146,11 +171,15 @@ with open(csvpath, "a", newline="") as f:
         w.writerow([a.n, a.stride, p, q, pl, items, f"{wall:.1f}", time.strftime("%Y-%m-%d %H:%M:%S"),
                     host, gpu_name, binary_sha, commit, nq_env, workmap, items_total])
         f.flush(); os.fsync(f.fileno())
+        if push_urls: push("PUSH_CSV_URL", csvpath); push("PUSH_LOG_URL", logpath)
         done[p] = q; walls.append(wall)
         avg = sum(walls) / len(walls); left = len(todo) - i - 1
         hint = max(1, round(a.stride * avg / (a.target_min * 60)))
         print(f"phase {p}: Q_partial={q} placements={pl} items={items} wall={wall:.0f}s | {i + 1}/{len(todo)} done, "
               f"avg {avg:.0f}s, ETA {left * avg / 3600:.2f} h | stride for {a.target_min:.0f}-min phases ≈ {hint}", flush=True)
+if push_urls: push("PUSH_CSV_URL", csvpath); push("PUSH_LOG_URL", logpath)
 print(f"worker {a.worker}/{a.workers}: {len(todo) - len(failed)} phases run, {len(failed)} failed {failed if failed else ''}; "
-      f"{len(done)} of {a.stride} phases recorded in {a.out}; merge with tools/merge.py {a.n} --stride {a.stride} --dir {a.out}")
+      f"{len(done)} of {a.stride} phases recorded in {a.out}"
+      + (f"; {push_failures} push failure(s)" if push_urls else "")
+      + f"; merge with tools/merge.py {a.n} --stride {a.stride} --dir {a.out}")
 sys.exit(1 if failed else 0)

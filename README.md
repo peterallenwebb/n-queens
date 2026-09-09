@@ -50,7 +50,7 @@ The CPU path is independent of the GPU; it counts n = 22 in about two hours on a
 
 ## Records
 
-`logs/` keeps, for each computation, the chunk or phase CSV (one row per unit of work with its partial count, wall time and provenance), the driver log, the merge summary, the mod-8 output and the verification reruns, with a README describing the machine, driver and source revision. See `logs/README.md`.
+`logs/` keeps, for each computation, the chunk or phase CSV (one row per unit of work with its partial count, wall time and provenance), the driver log, the merge summary, the mod-8 output and the verification reruns, with a README describing the machine, driver and source revision. See `logs/README.md`. During a fleet run the workers push their records after every phase to a versioned Cloud Storage bucket through signed, expiring, upload-only URLs, so a box that dies loses at most the phase it was running (RUNBOOK.md, "Records push").
 
 ## Provenance
 

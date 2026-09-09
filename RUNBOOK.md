@@ -61,15 +61,44 @@ run may span them; a commit that changes the ordering changes the fingerprint,
 and the test `work_map_fingerprints_are_stable` pins the current values so
 that such a change is a conscious act.
 
+## Records push
+
+The boxes push their records to the bucket `paw-nqueens-records` (Google
+Cloud Storage; uniform access, public access prevention, object versioning),
+so nothing is lost when a box dies while nobody is collecting. The only thing
+that goes onto a box is a set of **signed PUT URLs**: each allows one thing,
+uploading one object, and expires after at most seven days. The
+service-account key that signs them (`~/.config/nqueens/gcs-signer.json`,
+Storage Object Admin on this bucket only) never leaves the laptop, and the
+tools use it directly, so the active `gcloud` account is irrelevant.
+
+```
+~/.config/nqueens/venv/bin/python tools/bucket_selftest.py                    # once: bucket settings, a signed PUT, read-back, versioning
+~/.config/nqueens/venv/bin/python tools/presign.py 28 --stride 1200 --hosts boxes.txt   # push/<label>.env per box, 7 days
+ssh -p PORT HOST 'cat > n-queens/runs/push_urls.env' < push/box01.env        # ship each box its URLs (fleet.py does this)
+~/.config/nqueens/venv/bin/python tools/sync.py 28 --stride 1200 --dir runs   # pull the run's records from the bucket
+```
+
+The worker uploads the run manifest at start and its CSV and log after every
+phase with `curl -T`; a failed upload is logged and retried after the next
+phase, and the box's own CSV stays the primary record. Labels come from an
+optional third column of `boxes.txt` (`PORT HOST LABEL`), else box01, box02, …
+in file order. Signed URLs cannot outlive seven days: for a longer run,
+presign again and replace `runs/push_urls.env` on each box; the worker reads
+the file at every upload, so no restart is needed. The client library lives in
+a private virtualenv: `python3 -m venv ~/.config/nqueens/venv &&
+~/.config/nqueens/venv/bin/pip install google-cloud-storage`.
+
 ## Collect and merge
 
 ```
-bash tools/collect.sh 28 1000 boxes.txt runs       # boxes.txt: one "PORT HOST" per line; also pulls the manifest
-python3 tools/merge.py 28 --stride 1000 --dir runs --binary ./target/release/nqueens-parity
+~/.config/nqueens/venv/bin/python tools/sync.py 28 --stride 1200 --dir runs   # from the bucket (preferred)
+bash tools/collect.sh 28 1200 boxes.txt runs                                  # over ssh: boxes.txt lines "PORT HOST"; also pulls the manifest
+python3 tools/merge.py 28 --stride 1200 --dir runs --binary ./target/release/nqueens-parity
 ```
 
-Collect at least hourly: a box that its provider terminates takes its
-uncollected phases with it. The merge requires one work-map fingerprint across
+Sync or collect at least hourly; with the push in place the ssh collection is
+a fallback and a cross-check of the pushed copies. The merge requires one work-map fingerprint across
 every record and the manifest (anything else is INCOMPATIBLE and no total is
 printed), every phase 0 … S−1 exactly once (agreeing duplicates count as
 verification; a disagreement is a CONFLICT), and phase item counts that add up

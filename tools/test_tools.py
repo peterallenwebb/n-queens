@@ -104,5 +104,13 @@ with tempfile.TemporaryDirectory() as tmp:
     write_csv(os.path.join(d, "parity_8_s2_w0of1_h1.csv"), [row(0, 46, items=5), row(1, 46, items=4)])
     rc, o = run([MERGE, "8", "--stride", "2", "--dir", d])
     check("merge reports item counts that do not add up", rc != 0 and "ITEMS MISMATCH" in o, o)
+    # 9. records push: an unreachable upload URL is logged and retried, never fatal; phases are still recorded
+    out2 = os.path.join(tmp, "runs_push"); os.makedirs(out2)
+    with open(os.path.join(out2, "push_urls.env"), "w") as f:
+        f.write("PUSH_CSV_URL=http://127.0.0.1:9/nope\nPUSH_LOG_URL=http://127.0.0.1:9/nope\nPUSH_MANIFEST_URL=http://127.0.0.1:9/nope\n")
+    rc, o = run([WORKER, "8", "--stride", "2", "--binary", binary, "--out", out2, "--retries", "0"])
+    check("worker survives failing pushes and records its phases", rc == 0 and "2 phases run" in o and "push failure(s)" in o and "push of" in o, o)
+    rc, o = run([MERGE, "8", "--stride", "2", "--dir", out2])
+    check("merge of the pushed-run records is ok", rc == 0 and "Q(8) = 92 ok" in o, o)
 print(f"{'all tool tests passed' if fails == 0 else str(fails) + ' tool test(s) FAILED'}")
 sys.exit(1 if fails else 0)

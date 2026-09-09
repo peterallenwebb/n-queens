@@ -43,9 +43,12 @@ ladders run before each production launch are kept in `logs/ladders/`.
 
 Three checks apply to every full count:
 
-1. **The published value.** Q(25) and Q(26) (and Q(27), in progress) are
-   reproductions of known values, computed with exactly the machinery that
-   computes Q(28): same kernel, same host code, same chunking and merge.
+1. **The published value.** Q(25) and Q(26) are reproductions of known
+   values, computed with exactly the machinery that computes Q(28): same
+   kernel, same host code, same chunking and merge. Q(27) is rerun on the
+   fleet with the final code as the last rehearsal before Q(28), and its
+   phases 0–23 must also reproduce the 24 partials recorded by the
+   development build (`logs/q27/`), a cross-check between the two builds.
 2. **The mod-8 identity** Q ≡ S₂ (mod 8) (METHOD.md), with S₂ counted by an
    unrelated program (`burnside.rs`). `nqueens-parity <n> --mod8 <count>` runs
    it on a merged total (551 s for n = 28 on one laptop core).

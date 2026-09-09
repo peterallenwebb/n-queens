@@ -2,6 +2,7 @@
 /target*/
 COMMIT
 boxes.txt
-runs/*.log
+runs/
+push/
 __pycache__/
 .DS_Store
