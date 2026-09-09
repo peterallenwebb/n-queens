@@ -1,6 +1,6 @@
 # n-queens: Q(n) by the balanced checkerboard join
 
-This repository contains code for counting n-queens solutions by a "balanced checkerboard join," a decomposition of every solution into its black-square queens and its white-square queens (METHOD.md). The repository also includes tests that validate the counting code and records of the computations made with it. The goal is to compute Q(28) on a fleet of worker nodes equipped with NVIDIA RTX 5090 GPUs, and is published so that the computation can be examined and reproduced.
+This repository contains code for counting n-queens solutions by a "balanced checkerboard join," a decomposition of every solution into its queens on even squares (row + column even) and its queens on odd squares (METHOD.md). The repository also includes tests that validate the counting code and records of the computations made with it. The goal is to compute Q(28) on a fleet of worker nodes equipped with NVIDIA RTX 5090 GPUs, and is published so that the computation can be examined and reproduced.
 
 **Current Status:** 
 * The known values of Q(25) and Q(26) have been reproduced (one RTX 5090, 9,422s and 22,075s).
@@ -9,18 +9,18 @@ This repository contains code for counting n-queens solutions by a "balanced che
 
 ## The method in one paragraph
 
-Every diagonal is monochromatic on a chess board, so black square queens and white square queens can attack each other only through rows and columns. A solution is therefore exactly a black-restricted configuration (partial solution) and a white-restricted configuration on the complementary rows and columns, and
+Along any diagonal the parity of row + column is constant, so queens on even squares and queens on odd squares can attack each other only through rows and columns. A configuration (a complete solution) is therefore exactly an even configuration (a partial solution confined to the even squares) and an odd configuration on the complementary rows and columns, and
 
-    Q(n) = Σ_R Σ_C B[R, C] · W[R̄, C̄],
+    Q(n) = Σ_R Σ_C E[R, C] · O[R̄, C̄],
 
-where B[R, C] (W[R, C]) is the number of black (white) configurations with row set R and column set C. Only balanced row sets contribute (Lemma 2 of METHOD.md). Row reflection turns white configurations into black ones for even n, and the 180° rotation cuts the work in half. Each row set is one bounded search whose leaves are counted into a dense table indexed by the ranks of the configuration's even and odd column subsets; pairs are joined by reading the partner's table at the complementary ranks. Importantly, configurations are far fewer than solutions at n ≥ 20: the search costs 0.0665 steps per solution at n = 26.
+where E[R, C] (O[R, C]) is the number of even (odd) configurations with row set R and column set C. Only balanced row sets contribute (Lemma 2 of METHOD.md). Row reflection turns odd configurations into even ones for even n, and the 180° rotation cuts the work in half. Each row set is one bounded search whose leaves are counted into a dense table indexed by the ranks of the configuration's even and odd column subsets; pairs are joined by reading the partner's table at the complementary ranks. Importantly, partial configurations are far fewer than solutions at n ≥ 20: the search costs 0.0665 steps per solution at n = 26.
 
 ## Layout
 
 | path | contents |
 |---|---|
-| `src/geometry.rs` | binomials, colex ranks of column subsets, colour bit compressions, the two-level rank table the kernel uses |
-| `src/parity.rs` | work items (row-set pairs with symmetry weights), the CPU configuration enumerator, the join, the CPU count, selections (ranges and phases) |
+| `src/geometry.rs` | binomials, colex ranks of column subsets, parity bit compressions, the two-level rank table the kernel uses |
+| `src/parity.rs` | work items (row-set pairs with symmetry weights), the CPU enumerator of even and odd configurations, the join, the CPU count, selections (ranges and phases) |
 | `src/gpu.rs`, `kernel/parity.cu` | the CUDA production path (feature `cuda`): batches, tickets, the stack-resident enumeration, the read-side join |
 | `src/burnside.rs` | the 180°-symmetric count and the mod-8 check |
 | `src/reference.rs` | an independent brute-force solver (tests only) |

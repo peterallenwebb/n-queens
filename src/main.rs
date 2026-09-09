@@ -82,8 +82,8 @@ fn main() {
         if partial { println!("chunk: work items [{}, {}) of {}, stride {} phase {}: {} items — partial count", sel.from, sel.to.min(st.items_total), st.items_total, sel.stride, sel.phase, st.items); }
         let wall = t.elapsed().as_secs_f64();
         let status = if partial { "PARTIAL" } else { match known(n) { Some(k) if k == st.q => "ok", Some(_) => "MISMATCH", None => "unknown" } };
-        println!("parity join: Q={} {status} | placements {} ({:.3}/sol, {:.3e}/s) | {} pairs | configurations {} | max table entry {} | {threads} threads | {wall:.1}s",
-            st.q, st.placements, st.placements as f64 / st.q.max(1) as f64, st.placements as f64 / wall, st.items, st.configurations, st.max_count);
+        println!("parity join: Q={} {status} | placements {} ({:.3}/sol, {:.3e}/s) | {} pairs | partial configurations {} | max table entry {} | {threads} threads | {wall:.1}s",
+            st.q, st.placements, st.placements as f64 / st.q.max(1) as f64, st.placements as f64 / wall, st.items, st.partials, st.max_count);
         if partial { println!("(partial run: no mod-8 check)"); exit(0); }
         let pass = check_mod8(n, st.q);
         exit(if status == "MISMATCH" || !pass { 3 } else { 0 });

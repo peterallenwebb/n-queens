@@ -15,10 +15,10 @@ relies on.
 | `balance_lemma_holds_for_every_solution` | Lemma 2 of METHOD.md on every solution, n ≤ 11 (brute force) |
 | `colex_ranks_are_a_bijection_per_popcount_class` | the table indexing is a bijection for every width ≤ 14 |
 | `two_level_rank_table_matches_flat_ranks` | the shared-memory rank table the kernel uses equals the flat colex ranks for all 14-bit masks |
-| `even_and_odd_bit_compressions` | the colour split of a column mask is invertible |
-| `complement_ranks_invert_the_subset` | the complement map used by the join is right for every n ≤ 28, colour and k |
+| `even_and_odd_bit_compressions` | the parity split of a column mask is invertible |
+| `complement_ranks_invert_the_subset` | the complement map used by the join is right for every n ≤ 28, parity and k |
 | `checkerboard_join_matches_reference_and_published_values` | the decomposition (CPU) equals brute force (n ≤ 11) and OEIS (n ≤ 13), with and without the 180° symmetry |
-| `one_pair_matches_a_direct_count` | one enumerate-and-join pair equals the brute-force number of solutions with that black row set, every pair of n = 8 and n = 9 |
+| `one_pair_matches_a_direct_count` | one enumerate-and-join pair equals the brute-force number of solutions whose even configuration has that row set, every pair of n = 8 and n = 9 |
 | `strided_phases_and_ranges_add_up` | phases of a stride, and ranges, partition the work and their partials sum to Q(n) |
 | `work_item_weights_cover_every_pair_exactly_once` | the symmetry weights account for every pair, n ≤ 16 |
 | `c2_count_matches_brute_force_and_the_identity_holds` | the mod-8 counter equals a brute-force count of the rotation-fixed solutions (n ≤ 12) and Q ≡ S₂ (mod 8) holds on the published values (n ≤ 22) |
@@ -64,15 +64,15 @@ exactly once, with duplicates agreeing.
 The kernel refuses n > 28 at compile time: column masks occupy bits 0–27 of a
 u32 and the frame's row index rides in bits 28–31 of two words. Every diagonal
 shift has a row gap ≤ 27 and is masked to the board before the row nibble is
-packed. The two-level colex ranks split a 14-bit colour mask into 7 + 7 bits,
-exactly the 14 columns per colour at n = 28 (the host refuses more). Tickets,
+packed. The two-level colex ranks split a 14-bit one-parity column mask into 7 + 7 bits,
+exactly the 14 columns per parity at n = 28 (the host refuses more). Tickets,
 table offsets, table indices, per-thread accumulators, pair sums and join
 products are u64; the host total is u128 and is checked against u64 before it
 is printed (Q(28) ≈ 2.5 × 10¹⁸ < 1.8 × 10¹⁹). Table entries are u32; the largest
 entries observed with `NQ_TABMAX=1` are 98 (n = 20), 230 (n = 22), 818 (n = 24,
 a 1 % sample), 967 (n = 26, 101 items), 3,662 (n = 28, the 101 heaviest-sampled
 items) — growing ×3–4 per two steps of n, five orders of magnitude below 2³².
-The per-lane stack must hold L − min(prefix, L) frames for a configuration with L rows;
+The per-lane stack must hold L − min(prefix, L) frames for a partial configuration with L rows;
 L varies per work item (it is any even number for even n), the default of
 n − prefix + 1 frames covers the worst case, and the host refuses a smaller
 `NQ_MAXSTACK` after checking every item of the run.

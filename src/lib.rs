@@ -1,10 +1,11 @@
 //! Counting n-queens solutions by the balanced checkerboard join.
 //!
-//! Colour the board like a checkerboard. Every diagonal is monochromatic, so the queens on black
-//! squares and the queens on white squares can only attack each other through rows and columns.
-//! A solution therefore splits into a black configuration and a white configuration with complementary row sets and
-//! complementary column sets, and the count factors into a sum of products of configuration counts
-//! (METHOD.md). This crate contains exactly the code used to compute Q(n) that way:
+//! Call a cell (r, c) even or odd by the parity of r + c (the checkerboard colouring). Every diagonal
+//! has constant parity, so the queens on even cells and the queens on odd cells can only attack each
+//! other through rows and columns. A configuration (a solution) therefore splits into an even
+//! configuration and an odd configuration — partial solutions confined to one parity — with
+//! complementary row sets and complementary column sets, and the count factors into a sum of products
+//! of partial-configuration counts (METHOD.md). This crate contains exactly the code used to compute Q(n) that way:
 //!
 //! * [`geometry`] — bit tricks and the colex ranking of column subsets (both host and device use it);
 //! * [`parity`] — work items (row-set pairs), the CPU enumerator, the join, and the CPU count

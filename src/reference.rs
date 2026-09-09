@@ -38,7 +38,7 @@ pub fn count_c2_brute(n: u32) -> u64 {
     c
 }
 
-/// Colour-class counts (k00, k01, k10, k11) of a solution: k_ab = queens in rows ≡ a, columns ≡ b (mod 2).
+/// Parity-class counts (k00, k01, k10, k11) of a solution: k_ab = queens in rows ≡ a, columns ≡ b (mod 2).
 pub fn class_counts(perm: &[u8]) -> [u32; 4] {
     let mut k = [0u32; 4];
     for (r, &c) in perm.iter().enumerate() { k[((r & 1) << 1) | (c as usize & 1)] += 1; }

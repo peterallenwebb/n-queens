@@ -1,16 +1,16 @@
 //! The balanced checkerboard join: work items, the CPU configuration enumerator, the join, and the CPU count.
 //!
-//! Notation (METHOD.md). Cells are classed by (row parity, column parity); black = (0,0) ∪ (1,1),
-//! white = (0,1) ∪ (1,0). For a row set R and column set C let B[R, C] be the number of ways to place
-//! |R| mutually non-attacking queens on black squares with row set exactly R and column set exactly
-//! C (a "black configuration"); W[R, C] likewise on white squares. Then
+//! Notation (METHOD.md). Cells are classed by (row parity, column parity); even = (0,0) ∪ (1,1),
+//! odd = (0,1) ∪ (1,0). For a row set R and column set C let E[R, C] be the number of ways to place
+//! |R| mutually non-attacking queens on even cells with row set exactly R and column set exactly
+//! C (a "even configuration"); O[R, C] likewise on odd cells. Then
 //!
-//!   Q(n) = Σ_R Σ_C B[R, C] · W[R̄, C̄]           (R̄, C̄ = complements)
+//!   Q(n) = Σ_R Σ_C E[R, C] · O[R̄, C̄]           (R̄, C̄ = complements)
 //!
-//! because a solution is exactly a black configuration and a white configuration on complementary rows and columns
-//! (diagonals are monochromatic, so the two configurations never attack each other diagonally).
-//! For even n the row reflection ρ maps white configurations to black configurations, so W[R̄, C̄] = B[ρ(R̄), C̄] and only
-//! black configurations are enumerated; for odd n the two colours are enumerated separately. A black configuration with
+//! because a solution is exactly an even configuration and an odd configuration on complementary rows and columns
+//! (diagonals have constant parity, so the two configurations never attack each other diagonally).
+//! For even n the row reflection ρ maps odd configurations to even configurations, so O[R̄, C̄] = E[ρ(R̄), C̄] and only
+//! even configurations are enumerated; for odd n the two parities are enumerated separately. An even configuration with
 //! row set R has k00 queens on (even row, even column) and k11 on (odd row, odd column); the numbers
 //! of even and odd rows of R fix ke = k00 and ko = k11, and only balanced row sets occur in solutions
 //! (k00 = k11 for even n, k00 = k11 + 1 for odd n) — see METHOD.md — so the others are skipped.
@@ -22,14 +22,14 @@
 use crate::geometry::{binom, even_bits, odd_bits, Geometry};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-/// One single-colour configuration enumeration: the row set, the colour, and the table geometry.
+/// One single-parity configuration enumeration: the row set, the parity, and the table geometry.
 #[derive(Clone, Debug)]
 pub struct PartSpec {
     pub rowmask: u32,
     /// the rows of `rowmask` in increasing order
     pub rows: Vec<u32>,
-    pub black: bool,
-    /// numbers of even and odd columns this configuration uses (fixed by the row set and the colour)
+    pub even: bool,
+    /// numbers of even and odd columns this configuration uses (fixed by the row set and the parity)
     pub ke: u32,
     pub ko: u32,
     /// table dimensions C(ne, ke) and C(no, ko)
@@ -38,21 +38,21 @@ pub struct PartSpec {
 }
 
 impl PartSpec {
-    pub fn new(g: &Geometry, rowmask: u32, black: bool) -> Self {
+    pub fn new(g: &Geometry, rowmask: u32, even: bool) -> Self {
         let rows: Vec<u32> = (0..g.n).filter(|i| rowmask >> i & 1 != 0).collect();
         let ke_rows = (rowmask & g.even_rows()).count_ones();
         let ko_rows = rows.len() as u32 - ke_rows;
-        // a black queen in an even row sits on an even column, in an odd row on an odd column; white is the reverse
-        let (ke, ko) = if black { (ke_rows, ko_rows) } else { (ko_rows, ke_rows) };
-        PartSpec { rowmask, rows, black, ke, ko, width_even: binom(g.ne, ke), width_odd: binom(g.no, ko) }
+        // on even cells a queen in an even row sits on an even column and in an odd row on an odd column; odd cells are the reverse
+        let (ke, ko) = if even { (ke_rows, ko_rows) } else { (ko_rows, ke_rows) };
+        PartSpec { rowmask, rows, even, ke, ko, width_even: binom(g.ne, ke), width_odd: binom(g.no, ko) }
     }
     /// Number of table entries: one per (even subset, odd subset) pair of the right sizes.
     pub fn size(&self) -> usize { (self.width_even * self.width_odd) as usize }
-    /// Column parity this colour uses in row r.
-    pub fn col_parity(&self, r: u32) -> u32 { if self.black { r & 1 } else { (r & 1) ^ 1 } }
+    /// Column parity a configuration of this parity uses in row r.
+    pub fn col_parity(&self, r: u32) -> u32 { if self.even { r & 1 } else { (r & 1) ^ 1 } }
 }
 
-/// A pair of configurations to enumerate and join: the black row set `r`, the partner row set, and the
+/// A pair of configurations to enumerate and join: the even configuration's row set `r`, the partner row set, and the
 /// symmetry weight (how many pairs of the full sum this representative stands for).
 #[derive(Clone, Copy, Debug)]
 pub struct WorkItem { pub r: u32, pub partner: u32, pub weight: u32 }
@@ -61,9 +61,9 @@ pub struct WorkItem { pub r: u32, pub partner: u32, pub weight: u32 }
 ///
 /// Even n: the partner of R is ρ(R̄) (its complement, reflected), so pairs {R, ρ(R̄)} are unordered;
 /// one of the two orders is kept (weight 2 when the two differ, 1 when R = ρ(R̄)). With the 180°
-/// rotation σ (which maps black configurations to black configurations and the pair {R, P} to {ρ(R), ρ(P)} up to the
+/// rotation σ (which maps even configurations to even configurations and the pair {R, P} to {ρ(R), ρ(P)} up to the
 /// same reflection bookkeeping), one representative per σ-orbit is kept with the orbit size folded
-/// into the weight. Odd n: every balanced black row set R is paired with its complement R̄ (white);
+/// into the weight. Odd n: every balanced even row set R is paired with its complement R̄ (odd);
 /// the rotation identifies R with its reflection ρ(R), so one of each pair is kept with weight 2.
 /// `nosym` disables the rotation (every pair is listed, weights 1 or 2 only from the pair order),
 /// which the tests use to confirm the symmetry accounting.
@@ -124,10 +124,10 @@ impl Selection {
     }
 }
 
-/// Enumerate one configuration on the CPU into `table` (dense, `spec.size()` entries, zeroed by the caller):
-/// depth-first over the rows of the configuration, one queen per row on the colour's columns, with the usual
+/// Enumerate one partial configuration on the CPU into `table` (dense, `spec.size()` entries, zeroed by the caller):
+/// depth-first over the rows of the partial configuration, one queen per row on the columns of its parity, with the usual
 /// column / diagonal masks; the diagonal masks are shifted by the gap to the next row of the configuration.
-/// Returns (placements tried, configurations found).
+/// Returns (placements tried, partial configurations found).
 pub fn enumerate(g: &Geometry, spec: &PartSpec, table: &mut [u64]) -> (u64, u64) {
     let full = g.full;
     let even_cols: u32 = full & 0x5555_5555;
@@ -144,7 +144,7 @@ pub fn enumerate(g: &Geometry, spec: &PartSpec, table: &mut [u64]) -> (u64, u64)
         gap[t] = if t + 1 < l { spec.rows[t + 1] - spec.rows[t] } else { 0 };
     }
     let mut placements = 0u64;
-    let mut configurations = 0u64;
+    let mut partials = 0u64;
     let mut st_free = [0u32; 33];
     let mut st_cols = [0u32; 33];
     let mut st_ld = [0u32; 33];
@@ -168,7 +168,7 @@ pub fn enumerate(g: &Geometry, spec: &PartSpec, table: &mut [u64]) -> (u64, u64)
             let re = rank_tab[even_bits(cols) as usize] as u64;
             let ro = rank_tab[odd_bits(cols) as usize] as u64;
             table[(re * width_odd + ro) as usize] += 1;
-            configurations += 1;
+            partials += 1;
             continue;
         }
         let sh = gap[t];
@@ -181,10 +181,10 @@ pub fn enumerate(g: &Geometry, spec: &PartSpec, table: &mut [u64]) -> (u64, u64)
         st_free[nt] = pmask[nt] & !(cols | ld | rd);
         t = nt;
     }
-    (placements, configurations)
+    (placements, partials)
 }
 
-/// Σ_C ta[C] · tb[C̄] for two configurations with complementary column structure (b uses the columns a does
+/// Σ_C ta[C] · tb[C̄] for two partial configurations with complementary column structure (b uses the columns a does
 /// not). Returns (sum, largest entry of ta).
 pub fn join(g: &Geometry, a: &PartSpec, ta: &[u64], b: &PartSpec, tb: &[u64]) -> (u128, u64) {
     assert_eq!(b.ke, g.ne - a.ke);
@@ -212,13 +212,13 @@ pub struct CpuStats {
     /// work items in the whole list and in the selection
     pub items_total: usize,
     pub items: usize,
-    pub configurations: u64,
+    pub partials: u64,
     pub placements: u64,
     /// largest table entry seen (the GPU stores entries as u32)
     pub max_count: u64,
 }
 
-/// The count on the CPU: `threads` workers pull work items in list order, enumerate both configurations of
+/// The count on the CPU: `threads` workers pull work items in list order, enumerate both partial configurations of
 /// each item into dense tables, and join them.
 pub fn count_cpu(n: u32, threads: usize, nosym: bool, sel: &Selection) -> CpuStats {
     let g = Geometry::new(n);
@@ -236,7 +236,7 @@ pub fn count_cpu(n: u32, threads: usize, nosym: bool, sel: &Selection) -> CpuSta
         let hs: Vec<_> = (0..threads.max(1)).map(|_| sc.spawn(|| {
             let mut ta = vec![0u64; maxw];
             let mut tb = vec![0u64; maxw];
-            let (mut q, mut placements, mut configurations, mut maxcount) = (0u128, 0u64, 0u64, 0u64);
+            let (mut q, mut placements, mut partials, mut maxcount) = (0u128, 0u64, 0u64, 0u64);
             loop {
                 let it = next.fetch_add(1, Ordering::Relaxed);
                 if it >= nitems { break; }
@@ -245,7 +245,7 @@ pub fn count_cpu(n: u32, threads: usize, nosym: bool, sel: &Selection) -> CpuSta
                 ta[..a.size()].iter_mut().for_each(|x| *x = 0);
                 let (pl, pc) = enumerate(&g, &a, &mut ta[..a.size()]);
                 placements += pl;
-                configurations += pc;
+                partials += pc;
                 let b = PartSpec::new(&g, partner, !odd_n);
                 let same = r == partner && !odd_n;
                 let (acc, mc) = if same {
@@ -254,13 +254,13 @@ pub fn count_cpu(n: u32, threads: usize, nosym: bool, sel: &Selection) -> CpuSta
                     tb[..b.size()].iter_mut().for_each(|x| *x = 0);
                     let (pl2, pc2) = enumerate(&g, &b, &mut tb[..b.size()]);
                     placements += pl2;
-                    configurations += pc2;
+                    partials += pc2;
                     join(&g, &a, &ta[..a.size()], &b, &tb[..b.size()])
                 };
                 if mc > maxcount { maxcount = mc; }
                 q += acc * weight as u128;
             }
-            (q, placements, configurations, maxcount)
+            (q, placements, partials, maxcount)
         })).collect();
         hs.into_iter().map(|h| h.join().unwrap()).collect()
     });
@@ -268,7 +268,7 @@ pub fn count_cpu(n: u32, threads: usize, nosym: bool, sel: &Selection) -> CpuSta
         q: res.iter().map(|r| r.0).sum(),
         items_total,
         items: nitems,
-        configurations: res.iter().map(|r| r.2).sum(),
+        partials: res.iter().map(|r| r.2).sum(),
         placements: res.iter().map(|r| r.1).sum(),
         max_count: res.iter().map(|r| r.3).max().unwrap_or(0),
     }

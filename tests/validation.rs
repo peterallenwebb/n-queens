@@ -86,7 +86,7 @@ fn complement_ranks_invert_the_subset() {
                 let comp = g.complement_ranks(which, k);
                 for (rank, &m) in g.unrank[which][k as usize].iter().enumerate() {
                     assert_eq!(g.rank_tab[m as usize] as usize, rank);
-                    assert_eq!(g.unrank[which][(cnt - k) as usize][comp[rank] as usize], fullw ^ m, "n = {n}, colour {which}, k = {k}");
+                    assert_eq!(g.unrank[which][(cnt - k) as usize][comp[rank] as usize], fullw ^ m, "n = {n}, parity {which}, k = {k}");
                 }
             }
         }
@@ -106,11 +106,11 @@ fn checkerboard_join_matches_reference_and_published_values() {
     }
 }
 
-/// A single configuration enumeration and join, checked against a direct count: for n = 8 (even: the partner
-/// is the black configuration on the reflected complementary rows) and n = 9 (odd: the partner is the white
-/// configuration on the complementary rows), enumerate both configurations of every pair and compare the joined sum
-/// with the brute-force number of solutions whose black queens occupy exactly the rows of the pair's
-/// black configuration.
+/// A single enumerate-and-join pair, checked against a direct count: for n = 8 (even: the partner is the
+/// even configuration on the reflected complementary rows) and n = 9 (odd: the partner is the odd
+/// configuration on the complementary rows), enumerate both partial configurations of every pair and
+/// compare the joined sum with the brute-force number of solutions whose even configuration has exactly
+/// the row set of the pair's even configuration.
 #[test]
 fn one_pair_matches_a_direct_count() {
     for n in [8u32, 9] {
@@ -125,8 +125,8 @@ fn one_pair_matches_a_direct_count() {
         let (sum, _) = join(&g, &a, &ta, &b, &tb);
         let mut direct = 0u128;
         reference::for_each_solution(n, |p| {
-            let black_rows: u32 = p.iter().enumerate().filter(|(r, &c)| (*r as u32 + c as u32) % 2 == 0).map(|(r, _)| 1u32 << r).sum();
-            if black_rows == it.r { direct += 1; }
+            let even_rows_of_solution: u32 = p.iter().enumerate().filter(|(r, &c)| (*r as u32 + c as u32) % 2 == 0).map(|(r, _)| 1u32 << r).sum();
+            if even_rows_of_solution == it.r { direct += 1; }
         });
         assert_eq!(sum, direct, "n = {n}, row set {:#b}", it.r);
     }

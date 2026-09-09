@@ -1,19 +1,19 @@
 /*
  * Balanced checkerboard join on the GPU: configuration enumeration into dense tables, and the join.
  *
- * Every partition (one configuration: a row set and a colour) is enumerated by a depth-first search over its
+ * Every partition (one configuration: a row set and a parity) is enumerated by a depth-first search over its
  * rows. The first NQ_PREF rows are decided by a "ticket": a mixed-radix number whose digits choose
- * one column of the right colour in each prefix row (dead prefixes are simply skipped), so the search
+ * one column of the right parity in each prefix row (dead prefixes are simply skipped), so the search
  * is split into millions of independent roots that persistent threads pull from a global cursor.
  * Below the prefix the search runs from a lane-strided shared-memory stack of uint4 frames
  * (candidate columns, cols, ld, rd): one pass extracts the lowest candidate of the top frame, writes
  * the shrunken mask back, folds the pop, and pushes the child frame. The frame's row index rides in
- * bits 28-31 of cols (low nibble) and of ld (high nibble); the partition's row mask, colour and last
+ * bits 28-31 of cols (low nibble) and of ld (high nibble); the partition's row mask, parity and last
  * row stay in registers. Leaves are configurations: mode 0 (tabulate) increments the table entry of the
  * configuration's (even-column subset rank, odd-column subset rank); mode 1 (read) adds the partner table's
  * entry at the complementary ranks to a per-thread accumulator that is flushed into the pair's sum.
  *
- * Baked by the host: NQ_N, NQ_NE, NQ_NO (columns per colour), NQ_PREF, WG_SIZE (block size),
+ * Baked by the host: NQ_N, NQ_NE, NQ_NO (columns per parity), NQ_PREF, WG_SIZE (block size),
  * NQ_MAXSTACK (frames per lane; the host checks it against the tallest partition), NQ_T32 (u32
  * table entries, else u64), NQ_RANK2 (two-level colex ranks from shared memory, else a flat table).
  * n <= 28: column masks use bits 0-27 and the row index the nibble above.
@@ -57,7 +57,7 @@ __device__ __forceinline__ u32 odd_bits(u32 x) { return even_bits(x >> 1); }
 #endif
 
 /*
- * desc8 (40 bytes per partition): rows[32], nrows, black, mode, pad; desc32 (4 words per partition):
+ * desc8 (40 bytes per partition): rows[32], nrows, even, mode, pad; desc32 (4 words per partition):
  * table width_odd, offsets of the complement-rank tables (even, odd), pair index (read mode).
  * table_off: table offset in entries; prefix_base: cumulative ticket counts (nparts + 1 entries).
  * tables: the batch's tables; rank_tab / comp: rank and complement-rank tables; pair_sums: per-pair
@@ -85,9 +85,9 @@ void parity_dfs(
     const u64 total = prefix_base[nparts];
     u64 placements = 0, acc = 0;
     u32 cur_pair = 0xFFFFFFFFu;
-    /* the lane's current partition: row mask, colour, last row, mode, table width and offset */
-    u32 rmask = 0, isblack = 1, lastrow = 0, md = 0, wo = 0; u64 toff = 0;
-#define PMASK(r) ((((r) & 1u) ^ (isblack ^ 1u)) ? ODD_COLS : EVEN_COLS)
+    /* the lane's current partition: row mask, parity, last row, mode, table width and offset */
+    u32 rmask = 0, iseven = 1, lastrow = 0, md = 0, wo = 0; u64 toff = 0;
+#define PMASK(r) ((((r) & 1u) ^ (iseven ^ 1u)) ? ODD_COLS : EVEN_COLS)
 #define NEXTROW(r) ((r) + 1u + __ffs(rmask >> ((r) + 1u)) - 1u)
     const u32* ce = comp; const u32* co = comp;
     u32 sp = 0;
@@ -103,7 +103,7 @@ void parity_dfs(
                 const u32 b = lo;
                 u64 local = t - prefix_base[b];
                 const unsigned char* rw = desc8 + 40u * b;
-                const u32 L = rw[32]; isblack = rw[33]; md = rw[34];
+                const u32 L = rw[32]; iseven = rw[33]; md = rw[34];
                 toff = table_off[b]; wo = desc32[4u * b];
                 ce = comp + desc32[4u * b + 1]; co = comp + desc32[4u * b + 2];
                 if (md) { u32 pr = desc32[4u * b + 3]; if (pr != cur_pair) { if (cur_pair != 0xFFFFFFFFu && acc) atomicAdd(pair_sums + cur_pair, acc); acc = 0; cur_pair = pr; } }

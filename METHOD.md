@@ -9,19 +9,25 @@ it rests on. The code follows the notation: `parity.rs` (CPU) and
 An n-queens solution is a placement of n mutually non-attacking queens on an
 n × n board: one queen per row, one per column, no two on a common diagonal.
 Q(n) is the number of solutions (OEIS A000170). Rows and columns are numbered
-0 … n−1. Colour the board like a checkerboard: the cell (r, c) is **black** when
-r + c is even and **white** when r + c is odd. The four *classes* of a cell are
-its (row parity, column parity): black = (0,0) ∪ (1,1), white = (0,1) ∪ (1,0).
+0 … n−1. The *parity* of a cell (r, c) is the parity of r + c: the cell is
+**even** or **odd**. (The two parities are the two colours of the checkerboard,
+which is where the method's name comes from; which parity is the dark colour
+depends only on where the origin is put — with the origin at a1 and ranks
+counted from the bottom, the even cells are the dark squares — and nothing
+below depends on it.) The four *classes* of a cell are its (row parity, column
+parity): even = (0,0) ∪ (1,1), odd = (0,1) ∪ (1,0). A **configuration** is a
+placement of n mutually non-attacking queens, that is, a solution; Q(n) is the
+number of configurations.
 
-## Lemma 1 (diagonals are monochromatic)
+## Lemma 1 (diagonals have constant parity)
 
-Two cells on a common diagonal have the same colour.
+Two cells on a common diagonal have the same parity.
 
 *Proof.* Cells (r, c) and (r′, c′) on a common diagonal satisfy r − c = r′ − c′
 or r + c = r′ + c′; in either case r + c ≡ r′ + c′ (mod 2). ∎
 
-So queens of different colours can only attack each other along a row or a
-column.
+So two queens on cells of different parity can only attack each other along a
+row or a column.
 
 ## Lemma 2 (balance)
 
@@ -38,60 +44,64 @@ same way from the odd rows and the even columns. ∎
 The test `balance_lemma_holds_for_every_solution` checks this on every solution
 for n ≤ 11 by brute force.
 
-## Configurations
+## Even and odd configurations
 
-A **black configuration** (a partial solution confined to black cells) with row set
-R ⊆ {0, …, n−1} and column set C is a placement of
-|R| = |C| mutually non-attacking queens on black cells, one in each row of R and
-one in each column of C. B[R, C] denotes the number of black configurations with row set
-R and column set C; W[R, C] is the same for white configurations. A black queen in an
-even row sits in an even column and one in an odd row in an odd column, so a
-black configuration with row set R uses exactly kₑ = |R ∩ even rows| even columns and
-kₒ = |R ∩ odd rows| odd columns; for a white configuration the roles are swapped.
+An **even configuration** with row set R ⊆ {0, …, n−1} and column set C is a
+placement of |R| = |C| mutually non-attacking queens on even cells, one in each
+row of R and one in each column of C: a partial solution confined to the even
+cells (in Simkin's terms, a partial n-queens configuration restricted to one
+parity). E[R, C] denotes the number of even configurations with row set R and
+column set C; O[R, C] is the same for **odd configurations**, confined to the
+odd cells. On an even cell, a queen in an even row sits in an even column and
+one in an odd row in an odd column, so an even configuration with row set R
+uses exactly kₑ = |R ∩ even rows| even columns and kₒ = |R ∩ odd rows| odd
+columns; for an odd configuration the roles are swapped.
 
 ## The identity
 
 **Theorem.** With R̄ and C̄ the complements of R and C in {0, …, n−1},
 
-    Q(n) = Σ_R Σ_C B[R, C] · W[R̄, C̄].
+    Q(n) = Σ_R Σ_C E[R, C] · O[R̄, C̄].
 
-*Proof.* The queens of a solution split into its black queens and its white
-queens. The black queens form a black configuration with some row set R and column set
-C (they are mutually non-attacking as a subset of a solution); the white queens
-form a white configuration, and since each row and each column holds exactly one queen,
-its row set is R̄ and its column set is C̄. Conversely, take any black configuration
-(R, C) and any white configuration (R̄, C̄). Together they place n queens, one per row and
-one per column. Two queens of the same colour do not attack (each configuration is
-non-attacking); two queens of different colours share no row and no column (the
-row and column sets are disjoint) and no diagonal (Lemma 1). So the union is a
+*Proof.* The queens of a configuration split into those on even cells and those
+on odd cells. The former are an even configuration with some row set R and
+column set C (they are mutually non-attacking as a subset of a solution); the
+latter are an odd configuration, and since each row and each column holds
+exactly one queen, its row set is R̄ and its column set is C̄. Conversely, take
+any even configuration (R, C) and any odd configuration (R̄, C̄). Together they
+place n queens, one per row and one per column. Two queens of the same parity
+do not attack (each partial configuration is non-attacking); two queens of
+different parity share no row and no column (the row and column sets are
+disjoint) and no diagonal (Lemma 1). So the union is a
 solution, and the two constructions are inverse to each other. Summing over
 (R, C) counts every solution exactly once. ∎
 
-Lemma 2 says which terms can be nonzero: in a solution, the black queens
-occupy k₀₀ even rows and k₁₁ odd rows, so the black row set R of every solution
-satisfies |R ∩ even rows| − |R ∩ odd rows| = n mod 2. For any other R the inner
-sum Σ_C B[R, C] · W[R̄, C̄] counts solutions with black row set R, of which there
-are none. The program therefore enumerates only the **balanced** row sets. For
+Lemma 2 says which terms can be nonzero: in a solution, the queens on even
+cells occupy k₀₀ even rows and k₁₁ odd rows, so the row set R of the even
+configuration of every solution satisfies |R ∩ even rows| − |R ∩ odd rows| = n mod 2. For any other R the inner
+sum Σ_C E[R, C] · O[R̄, C̄] counts solutions whose even configuration has row
+set R, of which there are none. The program therefore enumerates only the **balanced** row sets. For
 n = 28 there are C(14,k)² such sets summed over k, some 40 million, before the
 symmetries below.
 
 ## Symmetries used
 
 *Row reflection ρ*: (r, c) ↦ (n−1−r, c). For **even** n, n−1 is odd, so ρ flips
-the row parity and hence the colour: it maps white configurations with row set S and
-column set C to black configurations with row set ρ(S) and column set C, bijectively.
-Hence W[R̄, C̄] = B[ρ(R̄), C̄] and only black configurations are ever enumerated:
+the row parity and hence the cell parity: it maps odd configurations with row
+set S and column set C to even configurations with row set ρ(S) and column set
+C, bijectively. Hence O[R̄, C̄] = E[ρ(R̄), C̄] and only even configurations are
+ever enumerated:
 
-    Q(n) = Σ_R Σ_C B[R, C] · B[ρ(R̄), C̄]        (n even).
+    Q(n) = Σ_R Σ_C E[R, C] · E[ρ(R̄), C̄]        (n even).
 
 The partner of R is P = ρ(R̄), and the partner of P is ρ(P̄) = ρ(ρ(R)) = R, so
 the terms come in unordered pairs {R, P}; the program lists each unordered pair
-once with weight 2 (weight 1 when R = P). For **odd** n, ρ preserves colour, so
-black and white configurations are both enumerated: the pair is (R black, R̄ white).
+once with weight 2 (weight 1 when R = P). For **odd** n, ρ preserves cell parity, so
+even and odd configurations are both enumerated: the pair is (R even, R̄ odd).
 
-*Rotation σ by 180°*: (r, c) ↦ (n−1−r, n−1−c) preserves colour and maps solutions
+*Rotation σ by 180°*: (r, c) ↦ (n−1−r, n−1−c) preserves cell parity and maps solutions
 to solutions; it maps a configuration with row set R and column set C to one with row
-set ρ(R) and column set ρ(C) of the same colour, so B[ρ(R), ρ(C)] = B[R, C].
+set ρ(R) and column set ρ(C) of the same parity, so E[ρ(R), ρ(C)] = E[R, C].
 Applied to the sum it maps the term of the pair {R, P} to the term of the pair
 {ρ(R), ρ(P)} (even n) or of the row set ρ(R) (odd n) with the same value, so one
 representative per σ-orbit suffices, with the orbit size (1 or 2) folded into
@@ -103,13 +113,13 @@ also checked with the symmetry switched off (`--nosym`).
 ## The computation
 
 **Partition by row set.** Each row set R is one bounded depth-first search: one
-queen per row of R on the columns of the configuration's colour, with the usual
+queen per row of R on the columns of the right parity, with the usual
 column and diagonal masks (the diagonal masks are shifted by the gap to the next
 row of R). Every leaf is a configuration with some column set C; it is counted into a
 dense table indexed by (colex rank of C ∩ even columns among kₑ-subsets, colex
 rank of C ∩ odd columns among kₒ-subsets), of size C(⌈n/2⌉, kₑ) · C(⌊n/2⌋, kₒ).
 
-**Join.** For a pair, the sum Σ_C B[R, C] · B[P, C̄] walks one table and reads the
+**Join.** For a pair, the sum Σ_C E[R, C] · E[P, C̄] walks one table and reads the
 other at the complementary ranks (`complement_ranks` in `geometry.rs`), a
 precomputed map from the rank of a subset to the rank of its complement. On
 the GPU the larger side is never stored: its configurations are enumerated and, at each
@@ -129,7 +139,7 @@ Phase 1 enumerates the smaller-table side of each item into its table; phase 2
 enumerates the partner side with read-side joins; items whose partner is the
 same row set (even n, R = ρ(R̄)) are joined by a separate kernel over the table
 with itself. Within a kernel, the first few rows of every configuration are decided by a
-*ticket* (a mixed-radix number choosing one column of the right colour in each
+*ticket* (a mixed-radix number choosing one column of the right parity in each
 prefix row; dead prefixes are skipped), so the search splits into millions of
 roots that persistent threads pull from a global counter; below the prefix the
 search runs from a per-lane stack in shared memory. Table entries are u32 (the

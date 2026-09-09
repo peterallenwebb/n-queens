@@ -116,7 +116,7 @@ pub fn run(n: u32, device_index: usize, nosym: bool, sel: &Selection, cfg: &GpuC
         return Err(format!("NQ_MAXSTACK {} frames < {stack_need} needed by a {tallest}-row partition (n {n}, prefix {})", cfg.maxstack, cfg.pref));
     }
     println!("stack: tallest partition {tallest} rows needs {stack_need} frames of {}", cfg.maxstack);
-    if cfg.rank2 && (g.ne > 14 || g.no > 14) { return Err("NQ_RANK2 two-level ranks cover at most 14 columns per colour (n <= 28)".into()); }
+    if cfg.rank2 && (g.ne > 14 || g.no > 14) { return Err("NQ_RANK2 two-level ranks cover at most 14 columns per parity (n <= 28)".into()); }
     if cfg.t32 { println!("tables: u32 entries"); } else { println!("tables: u64 entries"); }
     if cfg.rank2 { println!("rank: two-level shared-memory tables"); } else { println!("rank: flat table"); }
 
@@ -148,7 +148,7 @@ pub fn run(n: u32, device_index: usize, nosym: bool, sel: &Selection, cfg: &GpuC
     let mut cursor_d: CudaSlice<u64> = dev.alloc_zeros(1).map_err(err)?;
     let stats_d: CudaSlice<u64> = dev.alloc_zeros(2).map_err(err)?;
 
-    // tickets of a partition: product over its prefix rows of the number of columns of the row's colour
+    // tickets of a partition: product over its prefix rows of the number of columns of the row's parity
     let prefix_count = |spec: &PartSpec| -> u64 {
         let d = (cfg.pref as usize).min(spec.rows.len());
         spec.rows[..d].iter().map(|&r| if spec.col_parity(r) == 0 { g.ne as u64 } else { g.no as u64 }).product()
@@ -160,7 +160,7 @@ pub fn run(n: u32, device_index: usize, nosym: bool, sel: &Selection, cfg: &GpuC
         fn push(&mut self, sp: &PartSpec, off: u64, wo: u32, mode: u8, ceo: u32, coo: u32, pair: u32, tickets: u64) {
             let mut r = [0u8; 40];
             for (j, &x) in sp.rows.iter().enumerate() { r[j] = x as u8; }
-            r[32] = sp.rows.len() as u8; r[33] = sp.black as u8; r[34] = mode;
+            r[32] = sp.rows.len() as u8; r[33] = sp.even as u8; r[34] = mode;
             self.desc8.extend_from_slice(&r);
             self.desc32.extend_from_slice(&[wo, ceo, coo, pair]);
             self.off.push(off);
