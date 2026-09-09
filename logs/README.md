@@ -18,6 +18,13 @@ phases of a stride, the alternate table configuration, the table-maximum
 report), and the n = 22 table maximum, run while the Q(27) worker shared the
 GPU (walls are inflated).
 
+`ladder_2026-09-09_6b105ed_5090.log` — commit 6b105ed (the review items: work-map
+fingerprint and manifest, checked ticket counts, fail-loud scripts): ladder
+n = 16, 18, 20, 21 exact with the fingerprint line, an oversized prefix refused
+before any device work, a two-worker fleet run at n = 20 (stride 4) through
+`tools/worker.py` and `tools/merge.py` with the manifest, and the CPU and tool
+test suites on the box.
+
 ## q26/  — Q(26) = 22,317,699,616,364,044 (equals OEIS A000170)
 
 Computed 2026-09-09, 01:23–07:31 UTC, on one RTX 5090 by the development

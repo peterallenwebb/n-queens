@@ -1,0 +1,36 @@
+=== this repository at commit 6b105ed; Wed Sep  9 17:16:57 UTC 2026; NVIDIA GeForce RTX 5090, 580.159.03; shared with the Q(27) worker
+--- ladder:
+work map: fingerprint 389d0db9ae328f65, 3299 items
+parity join: Q=14772512 ok | placements 71351195 (4.830/sol, 1.640e8/s) | 3299 pairs | 3 launches | 1 batches | 0.4s
+mod-8 check: PASS (Q ≡ 0 mod 8, 3000 C2-symmetric solutions, 0.00s)
+work map: fingerprint 9d8346e8ecdbd178, 12283 items
+parity join: Q=666090624 ok | placements 1569730235 (2.357/sol, 3.019e9/s) | 12283 pairs | 2 launches | 1 batches | 0.5s
+mod-8 check: PASS (Q ≡ 0 mod 8, 18104 C2-symmetric solutions, 0.01s)
+work map: fingerprint dd9cfff415672a9f, 46508 items
+parity join: Q=39029188884 ok | placements 41118152915 (1.054/sol, 2.652e10/s) | 46508 pairs | 3 launches | 1 batches | 1.6s
+mod-8 check: PASS (Q ≡ 4 mod 8, 144620 C2-symmetric solutions, 0.07s)
+work map: fingerprint 3ee44838b93bb3e0, 176484 items
+parity join: Q=314666222712 ok | placements 454354833591 (1.444/sol, 4.475e10/s) | 176484 pairs | 14 launches | 7 batches | 10.2s
+mod-8 check: PASS (Q ≡ 0 mod 8, 375664 C2-symmetric solutions, 0.08s)
+--- oversized prefix is refused before device work:
+work map: fingerprint c8be566b536f98d3, 10034104 items
+prefix depth 17 gives 11112006825558016 tickets for one partition, above the limit of 2^40
+0
+--- fleet tools end to end at N=20, stride 4, two workers:
+N=20 stride 4: worker 0/2 owns 2 phases, 2 to do (0 of 4 recorded in runs_test) | work map dd9cfff415672a9f, 46508 items | b450637d5591 NVIDIA GeForce
+phase 0: Q_partial=9766959958 placements=10278472369 items=11627 wall=1s | 1/2 done, avg 1s, ETA 0.00 h | stride for 30-min phases ≈ 1
+phase 2: Q_partial=9766751792 placements=10284280605 items=11627 wall=1s | 2/2 done, avg 1s, ETA 0.00 h | stride for 30-min phases ≈ 1
+worker 0/2: 2 phases run, 0 failed ; 2 of 4 phases recorded in runs_test; merge with tools/merge.py 20 --stride 4 --dir runs_test
+phase 1: Q_partial=9736542308 placements=10270153831 items=11627 wall=1s | 1/2 done, avg 1s, ETA 0.00 h | stride for 30-
+phase 3: Q_partial=9758934826 placements=10285246110 items=11627 wall=1s | 2/2 done, avg 1s, ETA 0.00 h | stride for 30-
+{ "n": 20, "stride": 4, "workmap": "dd9cfff415672a9f", "items_total": 46508, "created": "2026-09-09 17:17:14", "host": "b450637d5591", "gpu": "NVIDIA GeForce RTX 5090", "binary_sha": "3bd32296cf89648a
+
+N=20 stride 4: 2 CSV files, 4 of 4 phases, 4 records, 0 phases verified by duplicates | work map dd9cfff415672a9f
+  worker: b450637d5591 NVIDIA GeForce RTX 5090 3bd32296cf89648a 6b105ed
+total placements 41118152915 | recorded wall 0.00 h (sum over phases) | items 46508 of 46508
+Q(20) = 39029188884 ok (OEIS A000170)
+mod-8 check: PASS (Q ≡ 4 mod 8, 144620 C2-symmetric solutions, 0.08s)
+merge exit 0
+--- cargo test (CPU suite) and tool tests on the box:
+test result: ok. 13 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 2.80s
+all tool tests passed
