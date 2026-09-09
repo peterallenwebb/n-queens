@@ -7,7 +7,7 @@ goes onto a rented GPU box (no credentials of any kind). The tools live in
 ## Build and check a box
 
 ```
-sh tools/ship.sh PORT HOST                     # tar the checkout over ssh, build with --features cuda
+bash tools/ship.sh PORT HOST                   # tar the checkout over ssh, build with --features cuda (refuses a dirty tree)
 ssh -p PORT HOST 'cd n-queens && for n in 16 17 18 19 20 21 22 23; do ./target/release/nqueens-parity $n --cuda | grep -E "parity join|mod-8"; done'
 ```
 
@@ -46,19 +46,39 @@ provenance. Rerunning the same command resumes; a killed worker loses only the
 phase in flight; a failing phase is retried and then recorded in `.failed`
 while the worker moves on. Stop a worker with `kill $(cat runs/....pid)`.
 
+**The work map and the run manifest.** A phase is a set of positions in the
+binary's work-item list, so phases are only compatible when they were cut from
+the same list. The binary prints a fingerprint of that list ("work map:
+fingerprint …", a 64-bit hash of n, the symmetry setting and every item in
+order; `nqueens-parity N --items` prints it without running anything). The
+first worker of a run writes `runs/parity_N_sS_manifest.json` with the
+fingerprint and the item count; every later worker checks its own binary
+against the manifest before starting, every phase's output is checked against
+it before being recorded, and every record carries it. A worker whose binary
+has a different work map refuses to run. Commits that do not touch
+`work_items` (documentation, tooling, host code) keep the fingerprint, so a
+run may span them; a commit that changes the ordering changes the fingerprint,
+and the test `work_map_fingerprints_are_stable` pins the current values so
+that such a change is a conscious act.
+
 ## Collect and merge
 
 ```
-sh tools/collect.sh 28 1000 boxes.txt runs         # boxes.txt: one "PORT HOST" per line
+bash tools/collect.sh 28 1000 boxes.txt runs       # boxes.txt: one "PORT HOST" per line; also pulls the manifest
 python3 tools/merge.py 28 --stride 1000 --dir runs --binary ./target/release/nqueens-parity
 ```
 
 Collect at least hourly: a box that its provider terminates takes its
-uncollected phases with it. The merge sums the phases, requires every phase
-0 … S−1 exactly once (agreeing duplicates count as verification; a
-disagreement is a CONFLICT and no total is trusted), compares with OEIS when
+uncollected phases with it. The merge requires one work-map fingerprint across
+every record and the manifest (anything else is INCOMPATIBLE and no total is
+printed), every phase 0 … S−1 exactly once (agreeing duplicates count as
+verification; a disagreement is a CONFLICT), and phase item counts that add up
+to the work map's total; it then sums the phases, compares with OEIS when
 n ≤ 27, runs the mod-8 check on the total, writes `parity_N_sS_summary.json`
-and, when phases are missing, `parity_N_sS_missing.txt`.
+and, when phases are missing, `parity_N_sS_missing.txt`. Records made before
+fingerprints existed are admitted only with `--allow-missing-fingerprint`.
+`python3 tools/test_tools.py` exercises all of these paths against a fake
+binary.
 
 ## Lost box, verification sample
 
@@ -75,7 +95,7 @@ on any box: `python3 tools/worker.py 28 --stride 1000 --phases 7,311,850 --redo
 | `NQ_PAIR_STRIDE`, `NQ_PAIR_PHASE` | run the work items with index ≡ phase (mod stride) | 1, 0 |
 | `NQ_PAIR_FROM`, `NQ_PAIR_TO` | restrict to the index range [from, to) | whole list |
 | `NQ_PARITY_MEM` | device memory for the batch tables, bytes | 8 GiB |
-| `NQ_PREF` | prefix rows decided by the ticket | 3 (+1 at n ≥ 24, +1 at n ≥ 28) |
+| `NQ_PREF` | prefix rows decided by the ticket; ticket counts use checked arithmetic and a prefix giving more than 2⁴⁰ tickets for one partition is refused | 3 (+1 at n ≥ 24, +1 at n ≥ 28) |
 | `NQ_THREADS_GPU` | persistent threads | 139,264 |
 | `NQ_MAXSTACK` | frames per lane in the shared-memory stack (checked against every item) | n − prefix + 1 |
 | `NQ_SLM` | block size | 128 when the static shared memory fits, else 64 |
@@ -93,10 +113,14 @@ with status `ok`, `MISMATCH` (against OEIS), `unknown` (no reference) or
 
 ## Operating notes
 
-- Build into another target directory (`sh tools/ship.sh PORT HOST target2`)
-  while a production run is using `target/release/nqueens-parity`; the worker
-  spawns the binary per phase, and swapping it mid-run changes the provenance
-  of later phases.
+- `tools/ship.sh` refuses to ship a dirty working tree, so the commit
+  recorded on the box is the commit that was built; it fails loudly on any
+  ssh, extraction or build error and prints the binary's SHA-256. Build into
+  another target directory (`bash tools/ship.sh PORT HOST target2`) while a
+  production run is using `target/release/nqueens-parity`; the worker spawns
+  the binary per phase, and swapping it mid-run changes the provenance of
+  later phases (the worker refuses a swapped binary with a different work map,
+  but not one with the same map).
 - Never stop a process with a `pkill -f` pattern that also appears in your
   own ssh command line: the `bash -c` script matches itself. Use the pid file.
 - Timing on shared boxes is contaminated by neighbours; counts are not.

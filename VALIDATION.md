@@ -21,6 +21,8 @@ relies on.
 | `one_pair_matches_a_direct_count` | one enumerate-and-join pair equals the brute-force number of solutions whose even configuration has that row set, every pair of n = 8 and n = 9 |
 | `strided_phases_and_ranges_add_up` | phases of a stride, and ranges, partition the work and their partials sum to Q(n) |
 | `work_item_weights_cover_every_pair_exactly_once` | the symmetry weights account for every pair, n ≤ 16 |
+| `work_map_fingerprints_are_stable` | golden fingerprints of the work map for n = 8, 12, 13 with and without symmetry; any change to the item ordering must update them consciously |
+| `ticket_counts_are_checked` | ticket counts are checked arithmetic; an oversized prefix is refused rather than wrapped |
 | `c2_count_matches_brute_force_and_the_identity_holds` | the mod-8 counter equals a brute-force count of the rotation-fixed solutions (n ≤ 12) and Q ≡ S₂ (mod 8) holds on the published values (n ≤ 22) |
 | `checkerboard_join_n14_to_n18` (`--ignored`) | the CPU decomposition equals OEIS for n = 14 … 18 |
 
@@ -54,10 +56,15 @@ Three checks apply to every full count:
    "verified by duplicates" and refuses if they disagree. For Q(26), chunks 23
    and 26 of 27 were recomputed this way (`logs/q26/verification_reruns.log`).
 
-A fleet run adds **provenance per phase**: host, GPU model, SHA-256 of the
-binary, source commit and the NQ_* environment are recorded with every phase
-in the CSVs (`logs/`), and the merge requires every phase 0 … S−1 to be present
-exactly once, with duplicates agreeing.
+A fleet run adds **provenance and compatibility per phase**: host, GPU
+model, SHA-256 of the binary, source commit, the NQ_* environment and the
+**work-map fingerprint** (a hash of n, the symmetry setting and the ordered
+work-item list the phases are cut from) are recorded with every phase in the
+CSVs (`logs/`). The merge requires one fingerprint across all records and the
+run manifest, every phase 0 … S−1 exactly once with duplicates agreeing, and
+phase item counts that add up to the work map's total; a worker refuses to
+start or to record a phase against a manifest with another fingerprint.
+`tools/test_tools.py` exercises the refusals against a fake binary.
 
 ## 4. Field sizes at n = 28
 
@@ -65,9 +72,12 @@ The kernel refuses n > 28 at compile time: column masks occupy bits 0–27 of a
 u32 and the frame's row index rides in bits 28–31 of two words. Every diagonal
 shift has a row gap ≤ 27 and is masked to the board before the row nibble is
 packed. The two-level colex ranks split a 14-bit one-parity column mask into 7 + 7 bits,
-exactly the 14 columns per parity at n = 28 (the host refuses more). Tickets,
-table offsets, table indices, per-thread accumulators, pair sums and join
-products are u64; the host total is u128 and is checked against u64 before it
+exactly the 14 columns per parity at n = 28 (the host refuses more). Ticket
+counts are computed with checked arithmetic before any device work and a
+prefix giving more than 2⁴⁰ tickets for one partition is refused, so an
+oversized `NQ_PREF` fails instead of wrapping and skipping tickets (test
+`ticket_counts_are_checked`). Tickets, table offsets, table indices,
+per-thread accumulators, pair sums and join products are u64; the host total is u128 and is checked against u64 before it
 is printed (Q(28) ≈ 2.5 × 10¹⁸ < 1.8 × 10¹⁹). Table entries are u32; the largest
 entries observed with `NQ_TABMAX=1` are 98 (n = 20), 230 (n = 22), 818 (n = 24,
 a 1 % sample), 967 (n = 26, 101 items), 3,662 (n = 28, the 101 heaviest-sampled

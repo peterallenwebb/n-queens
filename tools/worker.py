@@ -4,11 +4,14 @@
 The binary's work-item list (heaviest first) is split into STRIDE phases: phase p is the work items
 with index ≡ p (mod STRIDE).  Every phase samples heavy and light items alike, so phases take about
 the same time, and the phases sum to Q(N).  Worker w of W runs the phases p ≡ w (mod W): one worker
-per GPU, on any number of hosts, with no coordination beyond the shared (N, STRIDE, W).  Every
-finished phase is appended and fsynced to a CSV with its provenance (host, GPU, binary hash, commit,
-NQ_* environment); a killed worker loses at most the phase in flight, and rerunning the same command
-resumes.  tools/merge.py sums the CSVs of all workers and checks that every phase is present exactly
-once (duplicates must agree; they count as verification).
+per GPU, on any number of hosts, with no coordination beyond the shared (N, STRIDE, W).
+
+Phases are positions in the binary's work-item list, so every record carries the list's fingerprint
+(printed by the binary as "work map: fingerprint ..."): the first worker of a run writes the run
+manifest DIR/parity_N_sS_manifest.json, every later worker and every phase must match it, and
+tools/merge.py refuses records that disagree.  Every finished phase is appended and fsynced to a CSV
+with its provenance (host, GPU, binary hash, commit, NQ_* environment); a killed worker loses at most
+the phase in flight, and rerunning the same command resumes.
 
     worker.py N --stride S [--worker w --workers W | --phases a,b,c | --phases lo:hi | --phases-file F]
               [--gpu i] [--binary PATH] [--out DIR] [--env K=V ...] [--tag T]
@@ -63,27 +66,48 @@ gpu_name = sh("nvidia-smi --query-gpu=name --format=csv,noheader | head -n 1") o
 commit = sh("git rev-parse --short HEAD 2>/dev/null || cat COMMIT 2>/dev/null") or "unknown"   # COMMIT: written by tools/ship.sh
 with open(a.binary, "rb") as f: binary_sha = hashlib.sha256(f.read()).hexdigest()[:16]
 
+# ---- the work map this binary cuts phases from, and the run manifest
+FP_RE = re.compile(r"fingerprint ([0-9a-f]{16})")
+r = subprocess.run([a.binary, str(a.n), "--items"], env=env, capture_output=True, text=True)
+m_items = re.search(r"(\d+) work items", r.stdout); m_fp = FP_RE.search(r.stdout)
+if r.returncode != 0 or not m_items or not m_fp: sys.exit(f"could not read the work map from `{a.binary} {a.n} --items`:\n{r.stdout}{r.stderr}")
+items_total, workmap = int(m_items.group(1)), m_fp.group(1)
 os.makedirs(a.out, exist_ok=True)
+manifest_path = os.path.join(a.out, f"parity_{a.n}_s{a.stride}_manifest.json")
+if os.path.exists(manifest_path):
+    with open(manifest_path) as f: manifest = json.load(f)
+    for key, mine in (("n", a.n), ("stride", a.stride), ("workmap", workmap), ("items_total", items_total)):
+        if manifest.get(key) != mine:
+            sys.exit(f"REFUSED: this binary's {key} is {mine} but the run manifest {manifest_path} says {manifest.get(key)} — "
+                     f"a different work map; do not mix its phases with this run (start a new --out directory or rebuild the same commit)")
+else:
+    manifest = {"n": a.n, "stride": a.stride, "workmap": workmap, "items_total": items_total, "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "host": host, "gpu": gpu_name, "binary_sha": binary_sha, "commit": commit, "tool": "tools/worker.py"}
+    with open(manifest_path, "w") as f: json.dump(manifest, f, indent=1); f.flush(); os.fsync(f.fileno())
+
 tag = f"_{a.tag}" if a.tag else ""
 base = os.path.join(a.out, f"parity_{a.n}_s{a.stride}_w{a.worker}of{a.workers}_{host}{tag}")
 csvpath, logpath, failpath = base + ".csv", base + ".log", base + ".failed"
 FIELDS = ["n", "stride", "phase", "q_partial", "placements", "items", "wall_s", "finished_at",
-          "host", "gpu", "binary_sha", "commit", "env"]
+          "host", "gpu", "binary_sha", "commit", "env", "workmap", "items_total"]
 
-# phases already recorded by any CSV of this (n, stride) in the output directory
+# phases already recorded by any CSV of this (n, stride) in the output directory — all must share the work map
 done = {}
 for path in glob.glob(os.path.join(a.out, f"parity_{a.n}_s{a.stride}_*.csv")):
     with open(path) as f:
         for row in csv.DictReader(f):
-            if int(row["n"]) == a.n and int(row["stride"]) == a.stride:
-                done[int(row["phase"])] = int(row["q_partial"])
+            if int(row["n"]) != a.n or int(row["stride"]) != a.stride: continue
+            if row.get("workmap", workmap) != workmap:
+                sys.exit(f"REFUSED: {path} holds phases of work map {row.get('workmap')}, this binary's is {workmap}")
+            done[int(row["phase"])] = int(row["q_partial"])
 todo = phases if a.redo else [p for p in phases if p not in done]
 print(f"N={a.n} stride {a.stride}: worker {a.worker}/{a.workers} owns {len(phases)} phases, {len(todo)} to do "
-      f"({len(done)} of {a.stride} recorded in {a.out}) | {host} {gpu_name} | binary {binary_sha} commit {commit}", flush=True)
+      f"({len(done)} of {a.stride} recorded in {a.out}) | work map {workmap}, {items_total} items | {host} {gpu_name} | binary {binary_sha} commit {commit}", flush=True)
 if nq_env: print(f"env: {nq_env}", flush=True)
 if a.dry: print("phases:", todo[:20], "..." if len(todo) > 20 else ""); sys.exit(0)
 
 def run_phase(p):
+    """Returns (q, placements, items) or None on failure; raises SystemExit if the binary's work map changed."""
     e = dict(env); e["NQ_PAIR_STRIDE"] = str(a.stride); e["NQ_PAIR_PHASE"] = str(p)
     timeout = a.timeout_min * 60 if a.timeout_min > 0 else None
     try:
@@ -93,8 +117,11 @@ def run_phase(p):
         out, code = (ex.stdout or b"").decode(errors="replace") + "\n[timeout]", -1
     with open(logpath, "a") as lf:
         lf.write(f"===== phase {p} exit {code} {time.strftime('%Y-%m-%d %H:%M:%S')}\n{out}\n")
+    fp = FP_RE.search(out)
+    if fp and fp.group(1) != workmap:
+        sys.exit(f"REFUSED: phase {p} ran on work map {fp.group(1)} but this run is {workmap} — the binary changed under the run; nothing recorded")
     m = re.search(r"parity join: Q=(\d+) (\w+) \| placements (\d+)", out)
-    if code != 0 or not m or m.group(2) not in ("PARTIAL", "ok"): return None
+    if code != 0 or not m or m.group(2) not in ("PARTIAL", "ok") or not fp: return None
     items = re.search(r"stride \d+ phase \d+: (\d+) items", out)
     return int(m.group(1)), int(m.group(3)), int(items.group(1)) if items else -1
 
@@ -117,7 +144,7 @@ with open(csvpath, "a", newline="") as f:
             continue
         q, pl, items = res
         w.writerow([a.n, a.stride, p, q, pl, items, f"{wall:.1f}", time.strftime("%Y-%m-%d %H:%M:%S"),
-                    host, gpu_name, binary_sha, commit, nq_env])
+                    host, gpu_name, binary_sha, commit, nq_env, workmap, items_total])
         f.flush(); os.fsync(f.fileno())
         done[p] = q; walls.append(wall)
         avg = sum(walls) / len(walls); left = len(todo) - i - 1

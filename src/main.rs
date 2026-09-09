@@ -3,7 +3,7 @@
 //! environment variables that select work-item ranges and phases and tune the GPU.
 use nqueens_parity::burnside::verify_mod8;
 use nqueens_parity::known::known;
-use nqueens_parity::parity::{count_cpu, work_items, Selection};
+use nqueens_parity::parity::{count_cpu, work_items, work_map_fingerprint, Selection};
 use nqueens_parity::{geometry::Geometry, reference};
 use std::process::exit;
 use std::time::Instant;
@@ -64,7 +64,8 @@ fn main() {
     }
     if items {
         let g = Geometry::new(n);
-        println!("N={n}: {} work items ({} without the 180° symmetry)", work_items(&g, false).len(), work_items(&g, true).len());
+        let it = work_items(&g, nosym);
+        println!("N={n}: {} work items (sym {}), fingerprint {:016x}", it.len(), if nosym { "off" } else { "180°" }, work_map_fingerprint(n, nosym, &it));
         return;
     }
     if reference {
@@ -78,6 +79,7 @@ fn main() {
     if cpu {
         let t = Instant::now();
         let st = count_cpu(n, threads, nosym, &sel);
+        println!("work map: fingerprint {:016x}, {} items", st.fingerprint, st.items_total);
         let partial = !sel.is_all(st.items_total);
         if partial { println!("chunk: work items [{}, {}) of {}, stride {} phase {}: {} items — partial count", sel.from, sel.to.min(st.items_total), st.items_total, sel.stride, sel.phase, st.items); }
         let wall = t.elapsed().as_secs_f64();

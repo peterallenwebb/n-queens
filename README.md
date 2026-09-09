@@ -54,7 +54,7 @@ The CPU path is independent of the GPU; it counts n = 22 in about two hours on a
 
 ## Provenance
 
-The decomposition, kernel and tools were developed in a larger research repository; this repository contains the production subset, re-validated from scratch (the tests above and the GPU ladder in `logs/ladders/`). The Q(25) and Q(26) records in `logs/` were produced by that development repository's build of the same kernel, as noted in `logs/README.md`; every later computation is run from this repository at a recorded commit.
+The decomposition, kernel and tools were developed in a larger research repository; this repository contains the production subset, re-validated from scratch (the tests above and the GPU ladder in `logs/ladders/`). Every phase record of a fleet run carries the host, the binary's SHA-256, the source commit (the ship script refuses a dirty tree, so the commit is the one that was built) and a fingerprint of the work map the phases were cut from, which the merge requires to be the same across all records (RUNBOOK.md). The Q(25) and Q(26) records in `logs/` were produced by that development repository's build of the same kernel, as noted in `logs/README.md`; every later computation is run from this repository at a recorded commit.
 
 ## License
 

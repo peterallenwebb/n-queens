@@ -4,7 +4,7 @@
 use nqueens_parity::burnside::{count_c2, verify_mod8};
 use nqueens_parity::geometry::{binom, colex_rank, even_bits, odd_bits, Geometry};
 use nqueens_parity::known::{known, KNOWN_Q};
-use nqueens_parity::parity::{count_cpu, enumerate, join, work_items, PartSpec, Selection};
+use nqueens_parity::parity::{count_cpu, enumerate, join, max_tickets, ticket_count, work_items, work_map_fingerprint, PartSpec, Selection, MAX_TICKETS_PER_ITEM};
 use nqueens_parity::reference;
 
 const THREADS: usize = 4;
@@ -164,6 +164,57 @@ fn work_item_weights_cover_every_pair_exactly_once() {
         let without: u64 = work_items(&g, true).iter().map(|it| it.weight as u64).sum();
         assert_eq!(with, without, "n = {n}");
     }
+}
+
+// ---------- the work map: fingerprints and ticket counts
+
+/// The fingerprint identifies the work map a fleet run is cut from (RUNBOOK.md). These golden values pin
+/// the current ordering of `work_items`: any change to it must update them consciously, because phases
+/// recorded under different fingerprints must never be merged.
+#[test]
+fn work_map_fingerprints_are_stable() {
+    let golden = [(8u32, false, 0x39e90afcac47de45u64), (8, true, 0xc9f0281a6ced5434), (12, false, 0xd0b84cc5905a33bb),
+                  (12, true, 0xa42c4e6ebff627d8), (13, false, 0x9837d8bad3272340), (13, true, 0xbb4e4ad7441f64bb)];
+    for (n, nosym, want) in golden {
+        let g = Geometry::new(n);
+        let items = work_items(&g, nosym);
+        assert_eq!(work_map_fingerprint(n, nosym, &items), want, "n = {n}, nosym = {nosym}");
+        assert_eq!(work_map_fingerprint(n, nosym, &items), work_map_fingerprint(n, nosym, &work_items(&g, nosym)), "deterministic");
+    }
+    // sensitive to n, to the symmetry setting, to the order and to the weights
+    let g = Geometry::new(10);
+    let items = work_items(&g, false);
+    let mut swapped = items.clone();
+    swapped.swap(0, 1);
+    assert_ne!(work_map_fingerprint(10, false, &items), work_map_fingerprint(10, false, &swapped));
+    let mut reweighted = items.clone();
+    reweighted[0].weight += 1;
+    assert_ne!(work_map_fingerprint(10, false, &items), work_map_fingerprint(10, false, &reweighted));
+    assert_ne!(work_map_fingerprint(10, false, &items), work_map_fingerprint(10, true, &items));
+    assert_ne!(work_map_fingerprint(10, false, &items), work_map_fingerprint(11, false, &items));
+}
+
+/// Ticket counts are checked arithmetic: an oversized prefix is refused instead of wrapping and losing work.
+#[test]
+fn ticket_counts_are_checked() {
+    let g = Geometry::new(28);
+    assert_eq!(ticket_count(&g, 0b111, true, 5), Some(14 * 14 * 14));
+    assert_eq!(ticket_count(&g, 0b111, true, 2), Some(14 * 14));
+    assert_eq!(ticket_count(&g, 0, true, 5), Some(1));
+    assert_eq!(ticket_count(&g, 0x0FFF_FFFF, true, 17), None, "14^17 overflows u64");
+    let items = work_items(&g, false);
+    assert_eq!(max_tickets(&g, &items, 5).unwrap(), 14u64.pow(5));
+    assert!(max_tickets(&g, &items, 5).unwrap() <= MAX_TICKETS_PER_ITEM);
+    let cap = max_tickets(&g, &items, 11).unwrap_err();
+    assert!(cap.contains("prefix depth 11"), "{cap}");
+    // at 17 the first offending item in list order already exceeds the cap; an item that overflows u64 outright
+    // is refused by ticket_count (asserted above), and either way the run stops before any device work
+    let overflow = max_tickets(&g, &items, 17).unwrap_err();
+    assert!(overflow.contains("prefix depth 17"), "{overflow}");
+    // odd n: the partner side is the odd configuration, whose first rows use the other parity's columns
+    let g = Geometry::new(27);
+    let items = work_items(&g, false);
+    assert_eq!(max_tickets(&g, &items, 4).unwrap(), 14u64.pow(4));
 }
 
 // ---------- the mod-8 check

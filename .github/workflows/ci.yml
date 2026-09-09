@@ -9,4 +9,5 @@ jobs:
       - run: cargo build --release
       - run: cargo test --release
       - run: cargo check --release --features cuda
+      - run: python3 tools/test_tools.py
       - run: ./target/release/nqueens-parity 14 --cpu && ./target/release/nqueens-parity 14 --reference

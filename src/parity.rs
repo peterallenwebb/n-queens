@@ -101,6 +101,61 @@ pub fn work_items(g: &Geometry, nosym: bool) -> Vec<WorkItem> {
     items
 }
 
+/// 64-bit FNV-1a fingerprint of the work map: n, the symmetry setting and the items in list order. The
+/// phases of a fleet run are defined by positions in this list, so records of a run may only be merged
+/// when every one of them carries the same fingerprint (tools/worker.py records it per phase, tools/merge.py
+/// enforces it). Any change to `work_items` — its filter, its pairing or its order — changes the value.
+pub fn work_map_fingerprint(n: u32, nosym: bool, items: &[WorkItem]) -> u64 {
+    fn feed(mut h: u64, bytes: &[u8]) -> u64 {
+        for &b in bytes { h ^= b as u64; h = h.wrapping_mul(0x0000_0100_0000_01b3); }
+        h
+    }
+    let mut h = feed(0xcbf2_9ce4_8422_2325, &n.to_le_bytes());
+    h = feed(h, &[nosym as u8]);
+    for it in items {
+        h = feed(h, &it.r.to_le_bytes());
+        h = feed(h, &it.partner.to_le_bytes());
+        h = feed(h, &it.weight.to_le_bytes());
+    }
+    h
+}
+
+/// Upper bound on the tickets of one partition: a prefix whose ticket count exceeds this is refused
+/// (14¹⁰ ≈ 2⁸⁸ already means a prefix nobody can afford).
+pub const MAX_TICKETS_PER_ITEM: u64 = 1 << 40;
+
+/// Tickets of the partition with row set `rowmask` (of the given parity) under prefix depth `pref`: the
+/// product, over its first min(pref, rows) rows, of the number of columns of the parity that row uses.
+/// None on u64 overflow.
+pub fn ticket_count(g: &Geometry, rowmask: u32, even: bool, pref: u32) -> Option<u64> {
+    let mut acc = 1u64;
+    let mut taken = 0u32;
+    let mut m = rowmask;
+    while m != 0 && taken < pref {
+        let r = m.trailing_zeros();
+        m &= m - 1;
+        let col_parity = if even { r & 1 } else { (r & 1) ^ 1 };
+        acc = acc.checked_mul(if col_parity == 0 { g.ne as u64 } else { g.no as u64 })?;
+        taken += 1;
+    }
+    Some(acc)
+}
+
+/// Largest ticket count over both sides of every item, or an error when a count overflows u64 or exceeds
+/// `MAX_TICKETS_PER_ITEM`. Run before any device work so a bad `NQ_PREF` fails loudly instead of skipping tickets.
+pub fn max_tickets(g: &Geometry, items: &[WorkItem], pref: u32) -> Result<u64, String> {
+    let odd_n = g.n % 2 == 1;
+    let mut best = 0u64;
+    for it in items {
+        for (mask, even) in [(it.r, true), (it.partner, !odd_n)] {
+            let t = ticket_count(g, mask, even, pref).ok_or_else(|| format!("prefix depth {pref} overflows the u64 ticket count of a {}-row partition", mask.count_ones()))?;
+            if t > MAX_TICKETS_PER_ITEM { return Err(format!("prefix depth {pref} gives {t} tickets for one partition, above the limit of 2^40")); }
+            best = best.max(t);
+        }
+    }
+    Ok(best)
+}
+
 /// Which work items a run covers: the index range [from, to) of the list above, thinned to the
 /// indices ≡ phase (mod stride). Phases of one stride partition the list, so their partial counts
 /// add up to the full count; every phase samples the heavy and light items alike.
@@ -209,6 +264,8 @@ pub fn join(g: &Geometry, a: &PartSpec, ta: &[u64], b: &PartSpec, tb: &[u64]) ->
 pub struct CpuStats {
     /// the count (partial when the selection is not the whole list)
     pub q: u128,
+    /// fingerprint of the whole work map (`work_map_fingerprint`)
+    pub fingerprint: u64,
     /// work items in the whole list and in the selection
     pub items_total: usize,
     pub items: usize,
@@ -225,6 +282,7 @@ pub fn count_cpu(n: u32, threads: usize, nosym: bool, sel: &Selection) -> CpuSta
     let odd_n = n % 2 == 1;
     let all = work_items(&g, nosym);
     let items_total = all.len();
+    let fingerprint = work_map_fingerprint(n, nosym, &all);
     let items = sel.apply(all);
     let nitems = items.len();
     let maxw = {
@@ -266,6 +324,7 @@ pub fn count_cpu(n: u32, threads: usize, nosym: bool, sel: &Selection) -> CpuSta
     });
     CpuStats {
         q: res.iter().map(|r| r.0).sum(),
+        fingerprint,
         items_total,
         items: nitems,
         partials: res.iter().map(|r| r.2).sum(),

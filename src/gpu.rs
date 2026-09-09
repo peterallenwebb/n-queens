@@ -10,7 +10,7 @@
 //! the table with itself. Sums are multiplied by the item weights and accumulated in u128 on the host.
 use crate::geometry::Geometry;
 use crate::known::known;
-use crate::parity::{work_items, PartSpec, Selection, WorkItem};
+use crate::parity::{max_tickets, ticket_count, work_items, work_map_fingerprint, PartSpec, Selection, WorkItem};
 use cudarc::driver::{CudaDevice, CudaSlice, LaunchAsync, LaunchConfig};
 use std::time::Instant;
 
@@ -73,6 +73,8 @@ impl GpuConfig {
 pub struct GpuStats {
     /// the count (partial when `partial`)
     pub q: u128,
+    /// fingerprint of the whole work map (`parity::work_map_fingerprint`)
+    pub fingerprint: u64,
     pub items_total: usize,
     pub items: usize,
     pub placements: u64,
@@ -92,8 +94,13 @@ pub fn run(n: u32, device_index: usize, nosym: bool, sel: &Selection, cfg: &GpuC
     let odd_n = n % 2 == 1;
     let all: Vec<WorkItem> = work_items(&g, nosym);
     let items_total = all.len();
+    let fingerprint = work_map_fingerprint(n, nosym, &all);
+    println!("work map: fingerprint {fingerprint:016x}, {items_total} items");
     let chunked = !sel.is_all(items_total);
     let items: Vec<WorkItem> = sel.apply(all);
+    // Ticket counts are checked before any device work: an oversized NQ_PREF would otherwise wrap the u64
+    // ticket product and the run would skip work silently.
+    let tickets_max = max_tickets(&g, &items, cfg.pref)?;
     if chunked {
         println!("chunk: work items [{}, {}) of {items_total}, stride {} phase {}: {} items — partial count",
             sel.from, sel.to.min(items_total), sel.stride, sel.phase, items.len());
@@ -115,7 +122,7 @@ pub fn run(n: u32, device_index: usize, nosym: bool, sel: &Selection, cfg: &GpuC
     if stack_need > cfg.maxstack {
         return Err(format!("NQ_MAXSTACK {} frames < {stack_need} needed by a {tallest}-row partition (n {n}, prefix {})", cfg.maxstack, cfg.pref));
     }
-    println!("stack: tallest partition {tallest} rows needs {stack_need} frames of {}", cfg.maxstack);
+    println!("stack: tallest partition {tallest} rows needs {stack_need} frames of {}; up to {tickets_max} tickets per partition", cfg.maxstack);
     if cfg.rank2 && (g.ne > 14 || g.no > 14) { return Err("NQ_RANK2 two-level ranks cover at most 14 columns per parity (n <= 28)".into()); }
     if cfg.t32 { println!("tables: u32 entries"); } else { println!("tables: u64 entries"); }
     if cfg.rank2 { println!("rank: two-level shared-memory tables"); } else { println!("rank: flat table"); }
@@ -148,16 +155,15 @@ pub fn run(n: u32, device_index: usize, nosym: bool, sel: &Selection, cfg: &GpuC
     let mut cursor_d: CudaSlice<u64> = dev.alloc_zeros(1).map_err(err)?;
     let stats_d: CudaSlice<u64> = dev.alloc_zeros(2).map_err(err)?;
 
-    // tickets of a partition: product over its prefix rows of the number of columns of the row's parity
-    let prefix_count = |spec: &PartSpec| -> u64 {
-        let d = (cfg.pref as usize).min(spec.rows.len());
-        spec.rows[..d].iter().map(|&r| if spec.col_parity(r) == 0 { g.ne as u64 } else { g.no as u64 }).product()
+    // tickets of a partition (checked above for the whole run; checked again here)
+    let prefix_count = |spec: &PartSpec| -> Result<u64, String> {
+        ticket_count(&g, spec.rowmask, spec.even, cfg.pref).ok_or_else(|| "ticket count overflow".to_string())
     };
     // per-partition descriptors of one launch (see the kernel header for the layout)
     struct Launch { desc8: Vec<u8>, desc32: Vec<u32>, off: Vec<u64>, pbase: Vec<u64>, n: usize }
     impl Launch {
         fn new() -> Self { Launch { desc8: vec![], desc32: vec![], off: vec![], pbase: vec![0], n: 0 } }
-        fn push(&mut self, sp: &PartSpec, off: u64, wo: u32, mode: u8, ceo: u32, coo: u32, pair: u32, tickets: u64) {
+        fn push(&mut self, sp: &PartSpec, off: u64, wo: u32, mode: u8, ceo: u32, coo: u32, pair: u32, tickets: u64) -> Result<(), String> {
             let mut r = [0u8; 40];
             for (j, &x) in sp.rows.iter().enumerate() { r[j] = x as u8; }
             r[32] = sp.rows.len() as u8; r[33] = sp.even as u8; r[34] = mode;
@@ -165,8 +171,9 @@ pub fn run(n: u32, device_index: usize, nosym: bool, sel: &Selection, cfg: &GpuC
             self.desc32.extend_from_slice(&[wo, ceo, coo, pair]);
             self.off.push(off);
             let last = *self.pbase.last().unwrap();
-            self.pbase.push(last + tickets);
+            self.pbase.push(last.checked_add(tickets).ok_or("ticket base overflow within a batch")?);
             self.n += 1;
+            Ok(())
         }
     }
     let mut cap: usize = 4096;
@@ -247,7 +254,7 @@ pub fn run(n: u32, device_index: usize, nosym: bool, sel: &Selection, cfg: &GpuC
         };
         // ---- phase 1: tabulate
         let mut ph1 = Launch::new();
-        for (sp, off) in &tab { ph1.push(sp, *off, sp.width_odd as u32, 0, 0, 0, 0, prefix_count(sp)); }
+        for (sp, off) in &tab { ph1.push(sp, *off, sp.width_odd as u32, 0, 0, 0, 0, prefix_count(sp)?)?; }
         let l0 = Instant::now();
         launch(&ph1)?;
         launches += 1;
@@ -263,7 +270,7 @@ pub fn run(n: u32, device_index: usize, nosym: bool, sel: &Selection, cfg: &GpuC
             let (t, off) = &tab[*ti];
             debug_assert_eq!(t.ke, g.ne - sp.ke);
             debug_assert_eq!(t.ko, g.no - sp.ko);
-            ph2.push(sp, *off, t.width_odd as u32, 1, comp_base[0][sp.ke as usize], comp_base[1][sp.ko as usize], *pair, prefix_count(sp));
+            ph2.push(sp, *off, t.width_odd as u32, 1, comp_base[0][sp.ke as usize], comp_base[1][sp.ko as usize], *pair, prefix_count(sp)?)?;
         }
         let l1 = Instant::now();
         launch(&ph2)?;
@@ -310,7 +317,7 @@ pub fn run(n: u32, device_index: usize, nosym: bool, sel: &Selection, cfg: &GpuC
         println!("table entry maximum over the run: {} (u32 limit 4294967295)", m[0]);
         Some(m[0])
     } else { None };
-    Ok(GpuStats { q, items_total, items: items.len(), placements, launches, batches, partial: chunked || stopped, table_max, wall_s: t0.elapsed().as_secs_f64() })
+    Ok(GpuStats { q, fingerprint, items_total, items: items.len(), placements, launches, batches, partial: chunked || stopped, table_max, wall_s: t0.elapsed().as_secs_f64() })
 }
 
 /// Status word of a run: "ok" / "MISMATCH" against the published value, "unknown" beyond it, or
