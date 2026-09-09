@@ -1,4 +1,4 @@
-# n-queens: Q(n) by the balanced checkerboard join
+# Computing Q(n) by a Balanced Checkerboard Join
 
 This repository contains code for counting n-queens solutions by a "balanced checkerboard join," a decomposition of every solution into its queens on even squares (row + column even) and its queens on odd squares (METHOD.md). The repository also includes tests that validate the counting code and records of the computations made with it. The goal is to compute Q(28) on a fleet of worker nodes equipped with NVIDIA RTX 5090 GPUs, and is published so that the computation can be examined and reproduced.
 
@@ -7,7 +7,7 @@ This repository contains code for counting n-queens solutions by a "balanced che
 * A reproduction of Q(27) is in progress
 * Every count is checked against the published value where one exists, against the mod-8 identity Q ≡ S₂ (mod 8) with S₂ counted by an unrelated program, and by recomputing a sample of its phases in a different configuration (VALIDATION.md).
 
-## The method in one paragraph
+## Method Sketch
 
 Along any diagonal the parity of row + column is constant, so queens on even squares and queens on odd squares can attack each other only through rows and columns. A configuration (a complete solution) is therefore exactly an even configuration (a partial solution confined to the even squares) and an odd configuration on the complementary rows and columns, and
 
@@ -19,18 +19,18 @@ where E[R, C] (O[R, C]) is the number of even (odd) configurations with row set 
 
 | path | contents |
 |---|---|
-| `src/geometry.rs` | binomials, colex ranks of column subsets, parity bit compressions, the two-level rank table the kernel uses |
-| `src/parity.rs` | work items (row-set pairs with symmetry weights), the CPU enumerator of even and odd configurations, the join, the CPU count, selections (ranges and phases) |
-| `src/gpu.rs`, `kernel/parity.cu` | the CUDA production path (feature `cuda`): batches, tickets, the stack-resident enumeration, the read-side join |
-| `src/burnside.rs` | the 180°-symmetric count and the mod-8 check |
-| `src/reference.rs` | an independent brute-force solver (tests only) |
-| `src/known.rs` | OEIS A000170, n ≤ 27 |
-| `src/main.rs` | the `nqueens-parity` command |
-| `tests/` | the validation suite (VALIDATION.md) |
-| `tools/` | fleet operation: `worker.py`, `merge.py`, `ship.sh`, `start_worker.sh`, `collect.sh` (RUNBOOK.md) |
-| `logs/` | records of the computations: ladders, chunk and phase CSVs with provenance, merge summaries, checks |
+| `src/geometry.rs` | Binomials, colex ranks of column subsets, parity bit compressions, the two-level rank table the kernel uses |
+| `src/parity.rs` | Work items (row-set pairs with symmetry weights), the CPU enumerator of even and odd configurations, the join, the CPU count, selections (ranges and phases) |
+| `src/gpu.rs`, `kernel/parity.cu` | The CUDA production path (feature `cuda`): batches, tickets, the stack-resident enumeration, the read-side join |
+| `src/burnside.rs` | The 180°-symmetric count and the mod-8 check |
+| `src/reference.rs` | A reference brute-force solver (tests only) |
+| `src/known.rs` | Known values of Q(n), 0 ≤ n ≤ 27,  per OEIS A000170 |
+| `src/main.rs` | The `nqueens-parity` command |
+| `tests/` | Validation code (see VALIDATION.md) |
+| `tools/` | Fleet operation: `worker.py`, `merge.py`, `ship.sh`, `start_worker.sh`, `collect.sh` (RUNBOOK.md) |
+| `logs/` | Records of the computations: ladders, chunk and phase CSVs with provenance, merge summaries, checks |
 
-## Build, test, run
+## Build, Test, and Run
 
 ```
 cargo build --release                      # CPU only

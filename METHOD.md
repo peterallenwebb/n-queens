@@ -4,7 +4,7 @@ This note describes the identity the program uses to compute Q(n) and proves the
 
 ## Setting
 
-An n-queens solution, which we call a configuration, is a placement of n mutually non-attacking queens on an n × n board: one queen per row, one per column, no two on a common diagonal. The total count of such configurations is Q(n) and its known values are recorded in OEIS A000170. Rows and columns are numbered 0…n−1. The *parity* of a square (r, c) is the parity of r + c: the square is **even** or **odd**. The four *classes* of a square are its (row parity, column parity): even = (0,0) ∪ (1,1), odd = (0,1) ∪ (1,0).
+An n-queens solution, which we also call a configuration, is a placement of n mutually non-attacking queens on an n × n board: one queen per row, one per column, no two on a common diagonal. The total count of such configurations, Q(n) is recorded in OEIS A000170. Rows and columns are numbered 0…n−1. The *parity* of a square (r, c) is the parity of r + c, according to which the square is **even** or **odd**. The four *classes* of a square are its (row parity, column parity): even = (0,0) ∪ (1,1), odd = (0,1) ∪ (1,0).
 
 ## Lemma 1 (Diagonals Have Constant Parity)
 
@@ -21,11 +21,11 @@ and
 
 *Proof.* Every row holds exactly one queen, so k₀₀ + k₀₁ = number of even rows = ⌈n/2⌉. Every column holds exactly one queen, so k₀₁ + k₁₁ = number of odd columns = ⌊n/2⌋. Subtracting gives the first identity; the second follows the same way from the odd rows and the even columns. ∎
 
-## Even and odd configurations
+## Even and Odd Configurations
 
 An **even configuration** with row set R ⊆ {0, …, n−1} and column set C is a placement of |R| = |C| mutually non-attacking queens on even squares, one in each row of R and one in each column of C: a partial solution confined to the even squares (in Simkin's terms, a partial n-queens configuration restricted to one parity). E[R, C] denotes the number of even configurations with row set R and column set C; O[R, C] is the same for **odd configurations**, confined to the odd squares. On an even square, a queen in an even row sits in an even column and one in an odd row in an odd column, so an even configuration with row set R uses exactly kₑ = |R ∩ even rows| even columns and kₒ = |R ∩ odd rows| odd columns; for an odd configuration the roles are swapped.
 
-## The identity
+## The Identity
 
 **Theorem.** With R̄ and C̄ the complements of R and C in {0, …, n−1},
 
@@ -33,7 +33,7 @@ An **even configuration** with row set R ⊆ {0, …, n−1} and column set C is
 
 *Proof.* The queens of a configuration split into those on even squares and those on odd squares. The former are an even configuration with some row set R and column set C (they are mutually non-attacking as a subset of a solution); the latter are an odd configuration, and since each row and each column holds exactly one queen, its row set is R̄ and its column set is C̄. Conversely, take any even configuration (R, C) and any odd configuration (R̄, C̄). Together they place n queens, one per row and one per column. Two queens of the same parity do not attack (each partial configuration is non-attacking); two queens of different parity share no row and no column (the row and column sets are disjoint) and no diagonal (Lemma 1). So the union is a solution, and the two constructions are inverse to each other. Summing over (R, C) counts every solution exactly once. ∎
 
-Lemma 2 says which terms can be nonzero: in a solution, the queens on even squares occupy k₀₀ even rows and k₁₁ odd rows, so the row set R of the even configuration of every solution satisfies |R ∩ even rows| − |R ∩ odd rows| = n mod 2. For any other R the inner sum Σ_C E[R, C] · O[R̄, C̄] counts solutions whose even configuration has row set R, of which there are none. The program therefore enumerates only the **balanced** row sets. For n = 28 there are C(14,k)² such sets summed over k, some 40 million, before the symmetries below.
+Lemma 2 reveals which terms can be nonzero. In a solution, the queens on even squares occupy k₀₀ even rows and k₁₁ odd rows, so the row set R of the even configuration of every solution satisfies |R ∩ even rows| − |R ∩ odd rows| = n mod 2. For any other R the inner sum Σ_C E[R, C] · O[R̄, C̄] counts solutions whose even configuration has row set R, of which there are none. The program therefore enumerates only the **balanced** row sets. For n = 28 there are C(14,k)² such sets summed over k, some 40 million, before the symmetries below.
 
 ## Symmetries Used
 
