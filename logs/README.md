@@ -43,11 +43,18 @@ the production configuration and were removed here). 27 contiguous chunks of
 - mod-8: `nqueens-parity 26 --mod8 22317699616364044` → PASS (Q ≡ 4 mod 8,
   115,718,268 solutions fixed by the 180° rotation).
 
-## q27/ — in progress
+## q27/ — partial run, to be rerun on the fleet with the finalized code
 
-Started 2026-09-09 07:49 UTC on the same box: `tools/worker.py 27 --stride 200
---worker 0 --workers 1` (this repository's tool under its earlier name in the
-development repository), phases of ~1,590 s; the phase CSV, worker log, merge
-summary and mod-8 output will be added when the run completes.
+Started 2026-09-09 07:49 UTC on the same box by the development repository's
+build (commit 882be62 there) through the strided driver, stride 200, worker 0
+of 1; stopped by the user at 18:31 UTC after 24 phases (0–23) to be restarted
+as the final fleet test before Q(28). `partial_dev_build_phases_0-23.csv`
+holds the 24 records: 1,594 s per phase on average, 9.5 × 10¹³ placements per
+phase (5.96 × 10¹⁰ per second, 0.081 placements per solution), partial sum
+28,186,222,081,928,376. The rerun with the finalized code cuts the same work
+map (the item ordering is unchanged; the finalized binary's fingerprint for
+n = 27 is cb51fbf2a3a51f62), so these 24 partials must be reproduced exactly
+by its phases 0–23 — a cross-check between the two builds on top of the
+published value.
 
 ## q28/ — to come
