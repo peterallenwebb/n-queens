@@ -1,0 +1,23 @@
+[package]
+name = "nqueens-parity"
+version = "0.1.0"
+edition = "2021"
+authors = ["Peter Allen Webb <peterallenwebb@gmail.com>"]
+license = "MIT"
+description = "Counts n-queens solutions Q(n) by the balanced checkerboard join, on CPUs (validation) and NVIDIA GPUs (production); built to compute Q(28) on a fleet of RTX 5090s"
+repository = "https://github.com/peterallenwebb/n-queens"
+
+[dependencies]
+cudarc = { version = "0.12", optional = true, default-features = false, features = ["std", "driver", "nvrtc", "cuda-12060"] }
+
+[features]
+default = []
+cuda = ["dep:cudarc"]
+
+[[bin]]
+name = "nqueens-parity"
+path = "src/main.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1

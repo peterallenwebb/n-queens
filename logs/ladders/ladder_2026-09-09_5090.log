@@ -1,0 +1,25 @@
+--- ladder on target (production build 882be62), Wed Sep  9 07:44:20 UTC 2026
+parity join: Q=14772512 ok | placements 71351195 (4.830/sol, 1.306e8/s) | 3299 pairs | 3 launches | 1 batches 
+N=16: 14772512 solutions (CUDA parity join, 3299 pairs, 3 launches, 0.69s)
+mod-8 check: PASS (Q ≡ 0 mod 8, 3000 C2-symmetric solutions, 0.00s)
+parity join: Q=95815104 ok | placements 665291989 (6.943/sol, 1.361e9/s) | 12190 pairs | 2 launches | 1 batche
+N=17: 95815104 solutions (CUDA parity join, 12190 pairs, 2 launches, 0.62s)
+mod-8 check: PASS (Q ≡ 0 mod 8, 8152 C2-symmetric solutions, 0.00s)
+parity join: Q=666090624 ok | placements 1569730235 (2.357/sol, 3.212e9/s) | 12283 pairs | 2 launches | 1 batc
+N=18: 666090624 solutions (CUDA parity join, 12283 pairs, 2 launches, 0.62s)
+mod-8 check: PASS (Q ≡ 0 mod 8, 18104 C2-symmetric solutions, 0.01s)
+parity join: Q=4968057848 ok | placements 16190949784 (3.259/sol, 1.858e10/s) | 46252 pairs | 2 launches | 1 b
+N=19: 4968057848 solutions (CUDA parity join, 46252 pairs, 2 launches, 1.00s)
+mod-8 check: PASS (Q ≡ 0 mod 8, 44184 C2-symmetric solutions, 0.01s)
+parity join: Q=39029188884 ok | placements 41118152915 (1.054/sol, 4.464e10/s) | 46508 pairs | 3 launches | 1 
+N=20: 39029188884 solutions (CUDA parity join, 46508 pairs, 3 launches, 1.06s)
+mod-8 check: PASS (Q ≡ 4 mod 8, 144620 C2-symmetric solutions, 0.07s)
+parity join: Q=314666222712 ok | placements 454354833591 (1.444/sol, 9.017e10/s) | 176484 pairs | 14 launches 
+N=21: 314666222712 solutions (CUDA parity join, 176484 pairs, 14 launches, 5.18s)
+mod-8 check: PASS (Q ≡ 0 mod 8, 375664 C2-symmetric solutions, 0.08s)
+parity join: Q=2691008701644 ok | placements 1223336906049 (0.455/sol, 9.161e10/s) | 176870 pairs | 28 launche
+N=22: 2691008701644 solutions (CUDA parity join, 176870 pairs, 28 launches, 13.49s)
+mod-8 check: PASS (Q ≡ 4 mod 8, 1250692 C2-symmetric solutions, 0.63s)
+parity join: Q=24233937684440 ok | placements 14298977367134 (0.590/sol, 6.596e10/s) | 676270 pairs | 196 laun
+N=23: 24233937684440 solutions (CUDA parity join, 676270 pairs, 196 launches, 216.91s)
+mod-8 check: PASS (Q ≡ 0 mod 8, 3581240 C2-symmetric solutions, 0.76s)

@@ -1,0 +1,12 @@
+name: validate
+on: [push, pull_request]
+jobs:
+  cpu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - run: cargo test --release
+      - run: cargo check --release --features cuda
+      - run: ./target/release/nqueens-parity 14 --cpu && ./target/release/nqueens-parity 14 --reference

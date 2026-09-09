@@ -1,0 +1,8 @@
+--- verification reruns (NQ_RANK2=0 NQ_T32=0, target10):
+parity join: Q=87168802915562 PARTIAL | placements 31094320790468 (0.357/sol, 5.279e10/s) | 100000 pairs | 310 launches | 155 batches | 589.
+N=26: 87168802915562 solutions (CUDA parity join, 100000 pairs, 310 launches, 589.14s)
+2200000,2300000,87168802915562,31094320790468,358.8,2026-09-09 07:28:03
+parity join: Q=63082272984 PARTIAL | placements 9748158579115 (154.531/sol, 1.906e11/s) | 100000 pairs | 62 launches | 31 batches | 51.1s
+N=26: 63082272984 solutions (CUDA parity join, 100000 pairs, 62 launches, 51.32s)
+2500000,2600000,63082272984,9748158579115,50.2,2026-09-09 07:31:09
+27 chunks; sum walls 22075 s = 6.13 h; total Q 22317699616364044; placements 1483507628070917; first finished 2026-09-09 01:42:51, last finished 2026-09-09 07:31:10
